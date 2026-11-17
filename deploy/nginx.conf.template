@@ -1,0 +1,41 @@
+# Included in nginx's http context. Only compiled frontend files go in this root.
+log_format tickets_safe '$remote_addr $request_method $uri $status';
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __VM_HOST__;
+    root /var/www/tickets-app;
+    index index.html;
+    server_tokens off;
+    client_max_body_size 100k;
+    access_log /var/log/nginx/tickets.access.log tickets_safe;
+    error_log /var/log/nginx/tickets.error.log warn;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy same-origin always;
+
+    # No URI suffix on proxy_pass: preserve /api and the full request path.
+    location = /api {
+        proxy_pass http://127.0.0.1:3001;
+        include /etc/nginx/tickets-proxy.conf;
+    }
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        include /etc/nginx/tickets-proxy.conf;
+    }
+    location ~ (^|/)\. { return 404; }
+    location ~ ^/(server|client|deploy|node_modules)(/|$) { return 404; }
+    location ~* \.(env|ts|tsx|sql|map|md)$ { return 404; }
+    location = /package.json { return 404; }
+    location /assets/ {
+        try_files $uri =404;
+        expires 1y;
+    }
+    location = /index.html {
+        add_header Cache-Control no-cache;
+    }
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

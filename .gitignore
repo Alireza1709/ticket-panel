@@ -8,3 +8,4 @@ coverage/
 *.pdf
 .vscode/
 *.tsbuildinfo
+deploy/.runtime/
