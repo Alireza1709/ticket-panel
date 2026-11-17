@@ -126,9 +126,12 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
           statuses: 5,
           priorities: 4,
         });
+        // Count fixed seed fixtures, not legitimate replies/history added in the browser.
         const related = await pool.query(`SELECT
-        (SELECT count(*)::int FROM ticket_messages WHERE ticket_id::text LIKE '20000000-0000-4000-8000-%' AND NOT is_cancelled) AS messages,
-        (SELECT count(*)::int FROM status_history WHERE ticket_id::text LIKE '20000000-0000-4000-8000-%' AND NOT is_cancelled) AS history`);
+        (SELECT count(*)::int FROM ticket_messages WHERE ticket_id::text LIKE '20000000-0000-4000-8000-%'
+          AND (id::text LIKE '30000000-0000-4000-8000-%' OR id::text LIKE '40000000-0000-4000-8000-%') AND NOT is_cancelled) AS messages,
+        (SELECT count(*)::int FROM status_history WHERE ticket_id::text LIKE '20000000-0000-4000-8000-%'
+          AND (id::text LIKE '50000000-0000-4000-8000-%' OR id::text LIKE '60000000-0000-4000-8000-%') AND NOT is_cancelled) AS history`);
         assert.deepEqual(related.rows[0], { messages: 36, history: 36 });
         const migrations = await pool.query(
           "SELECT version FROM schema_migrations WHERE NOT is_cancelled ORDER BY version",
