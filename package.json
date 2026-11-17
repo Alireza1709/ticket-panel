@@ -11,6 +11,10 @@
     "build": "npm run build --workspaces",
     "check": "npm run check --workspaces",
     "start": "npm run start -w server",
-    "test:health": "npm run test:health -w server"
+    "test:health": "npm run test:health -w server",
+    "db:migrate": "npm run db:migrate -w server",
+    "db:seed": "npm run db:seed -w server",
+    "test:auth": "npm run test:auth -w server && npm run test:routes -w client",
+    "config:session": "npm run config:session -w server"
   }
 }

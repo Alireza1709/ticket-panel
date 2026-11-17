@@ -6,6 +6,7 @@ import test from "node:test";
 // of developer credentials and avoids contacting another machine.
 process.env.DATABASE_URL = "postgresql://127.0.0.1:1/health_test";
 process.env.NODE_ENV = "test";
+process.env.SESSION_SECRET = "health-test-only-".repeat(5);
 const { app } = await import("../dist/app.js");
 const { pool } = await import("../dist/db.js");
 
