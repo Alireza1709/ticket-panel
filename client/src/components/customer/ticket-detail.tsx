@@ -15,7 +15,7 @@ import { Failure, Pending, useAuthFailure } from "./shared";
 import { ReplyForm } from "./reply-form";
 import { CancelTicketDialog } from "./cancel-ticket-dialog";
 
-function MessageThread({ messages }: { messages: Detail["messages"] }) {
+export function MessageThread({ messages }: { messages: Detail["messages"] }) {
   return (
     <section className="space-y-4" aria-labelledby="thread-title">
       <h3
@@ -63,7 +63,7 @@ function MessageThread({ messages }: { messages: Detail["messages"] }) {
     </section>
   );
 }
-function StatusHistory({ history }: { history: Detail["history"] }) {
+export function StatusHistory({ history }: { history: Detail["history"] }) {
   return (
     <section
       className="space-y-3 border-t border-border pt-5"

@@ -9,9 +9,11 @@ import { CsrfState, Failure, inputClass, useCustomerPost } from "./shared";
 export function ReplyForm({
   ticketId,
   userId,
+  audience = "customer",
 }: {
   ticketId: string;
   userId: string;
+  audience?: "customer" | "staff";
 }) {
   const state = useCustomerPost();
   const client = useQueryClient();
@@ -28,7 +30,7 @@ export function ReplyForm({
   const reply = useMutation({
     mutationFn: (values: ReplyValues) =>
       state.post(
-        `/api/customer/tickets/${ticketId}/replies`,
+        `/api/${audience}/tickets/${ticketId}/replies`,
         values,
         successSchema,
       ),
@@ -39,6 +41,10 @@ export function ReplyForm({
       await Promise.all([
         client.invalidateQueries({ queryKey: ["ticket", userId, ticketId] }),
         client.invalidateQueries({ queryKey: ["tickets", userId] }),
+        client.invalidateQueries({
+          queryKey: ["staff-ticket", userId, ticketId],
+        }),
+        client.invalidateQueries({ queryKey: ["staff-inbox"] }),
       ]);
     },
   });
