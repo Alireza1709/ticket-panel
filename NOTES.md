@@ -1,29 +1,43 @@
 # Implementation notes
 
-## Milestone 1 decisions
+## Milestones 1–2
 
-- npm workspaces keep one lockfile and independent frontend/backend builds.
-- Strict TypeScript in both applications; no explicit `any` in application source.
-- Tailwind v4 uses the official Vite integration. The local shadcn/ui-style Button uses Radix Slot, CVA and CSS tokens; `components.json` configures future component additions.
-- TanStack Query provides loading/error/success states on the starter screen, with an explicit empty fallback. The Persian date picker and today's Jalali date demonstrate locale setup.
-- React Hook Form and its Zod resolver are installed for later forms; the starter screen has no business form.
-- PostgreSQL settings come from `server/.env`. Connection attempts have timeouts and health responses never expose connection errors.
-- The database URL is required at API startup, even for process health. Invalid configuration fails with a generic message.
-- No schema, migrations, seed, login, ticket flows, nginx configuration or boot service in this milestone.
-- `task.pdf` was present and preserved. No PDF extraction utility was available; implementation follows the user's supplied requirements.
+The existing npm workspaces, localhost-only Express/Vite listeners, API proxy, Tailwind v4 and shadcn-style Button are retained. No dependencies were added for Milestone 2. The user completed PostgreSQL provisioning (`tickets_user`, `tickets_db`) and both health checks passed before Milestone 2.
 
-## Review before later milestones
+## Schema decisions
 
-Choose session persistence, schema/foreign-key strategy (including initial user `created_by`), role checks and seed procedure before introducing tables. Never store plaintext passwords or hard-delete records. Add production session cookies, CSRF protection and rate limiting with authentication. Do not expose database readiness publicly through nginx without deciding its access policy.
+- SQL migrations are transactional and versioned with SHA-256 checksums and a PostgreSQL advisory lock. Runner works through tsx or compiled code; SQL files stay in `server/migrations`.
+- PostgreSQL 16 supplies `gen_random_uuid()` without an extension. Native enums constrain roles/statuses/priorities.
+- Customer and assignee composite foreign keys prevent assigning customer accounts as staff. Active-ticket indexes cover customer, inbox and assignee queries; message/history indexes cover chronological details.
+- All six tables have the required audit/cancellation columns. Four application tables require a creator and have automatic updated timestamps. Infrastructure migration/anonymous-session actors may be NULL. Deferred self-reference bootstraps the first staff creator without a fabricated system account.
+- Statement triggers block DELETE and TRUNCATE. No destructive database commands were run. Future ticket cancellation/status changes should be transactional with history insertion; there are no ticket mutation endpoints yet.
+- Seed uses fixed UUIDs, a transaction and an advisory lock. Repeated seed runs preserve existing rows, changed passwords and cancellations. Ticket number sequences can have gaps. Demo seed accounts/passwords are public test fixtures, not real credentials.
 
-## Verification results
+## Authentication decisions
 
-- Frontend and backend strict TypeScript checks passed.
-- Vite frontend production build and backend compilation passed.
-- Repeatable HTTP smoke check passed: process health 200, unavailable database 503, unknown route 404, malformed JSON 400.
-- Argon2 hash/verify smoke check passed despite npm install-script advisories.
-- npm reported zero dependency vulnerabilities during installation.
-- Application source scan found no explicit TypeScript `any`.
-- Ignore rules cover environment files, dependencies and build output, while retaining `.env.example`.
-- PostgreSQL on localhost:5432 accepts connections. Successful authenticated DB health is unverified: no matching VM-user role, and sudo requires interactive authentication. No DB records were changed.
-- Browser interaction was not tested; frontend verification is compilation/build only.
+- Argon2id hashes, including a dummy hash for missing-email verification, avoid plaintext password storage and reduce obvious account-enumeration timing differences.
+- A small PostgreSQL express-session Store uses the existing pg package. MemoryStore is avoided so restarting Express does not lose sessions. Only a signed opaque session ID reaches the browser.
+- Regeneration at login cancels the old session; logout cancels the row and clears its data/cookie. Expired sessions are ignored. Retained expired rows need a future soft-cancellation/retention task; there is no deletion job.
+- A random stable signing secret was appended to ignored `server/.env` without printing it or changing the database URL. `config:session` makes this reproducible and preserves valid existing secrets. Placeholder secrets are rejected. The file remains 0600.
+- Cookies are HttpOnly, SameSite=Lax, path `/`, eight-hour lifetime; Secure is enabled in production. Production requires an HTTPS application origin. Trusted proxies are restricted to loopback for the later local nginx setup.
+- Synchronizer CSRF tokens protect login and logout. Constant-time token checks and an Origin allowlist are used. CSRF is enforced even for login to prevent login-CSRF/session swapping. Future cookie-authenticated writes must reuse this protection.
+- Zod validates strict authentication bodies and normalizes emails. Safe user DTOs expose only id/name/email/role. Database/internal errors return generic Persian messages.
+- Current-user/role checks fetch the non-cancelled user from PostgreSQL each request. Frontend redirects are convenience; API role middleware is the enforcement boundary.
+- Login failure throttling is per IP and stored in memory (single-process interview application). A shared limiter would be needed for multiple API instances.
+
+## Frontend decisions
+
+- React Hook Form + Zod handle the Persian login form; TanStack Query manages user/CSRF/overview requests and mutations. Error/loading states and accessible input errors are included.
+- A small history-based route guard covers the three current routes without adding a routing dependency. Signed-out users go to login; authenticated users go to their role's landing page. Query caches are cleared when changing accounts.
+- Placeholder ticket sections explicitly say data integration comes later, avoiding an inaccurate “no tickets” message when seed tickets exist.
+- Jalali date formatting and Persian calendar/date picker remain available on protected pages.
+
+## Verification record
+
+Migrations and seed ran twice successfully with unchanged counts: 4 users, 20 tickets, 36 messages and 36 history entries. Final `npm run check`, `npm run build`, `npm run test:auth` and `npm run test:health` passed. Authentication checks cover schema audit fields/guards, both password outcomes, validation, anonymous/role access, CSRF/Origin rejection, session rotation/persistence, logout replay and throttling; frontend redirect tests cover both roles and signed-out access. Running `config:session` twice preserved the existing private environment byte-for-byte. The environment file is still ignored with mode 0600. Schema tests inspect deletion guards rather than issuing destructive statements. Browser automation is unavailable; no browser interaction test is claimed.
+
+The final Vite build emits a non-blocking warning for a 500.56 kB JavaScript chunk (155.83 kB gzipped). Calendar code splitting is a future optimization; the build succeeds.
+
+## Deferred work
+
+Ticket APIs/UI, transactional status changes, nginx, TLS, systemd boot startup, durable multi-process rate limiting, session-retention housekeeping, full browser/accessibility verification. Original `task.pdf` remains untouched; no PDF extraction utility was available during Milestone 1.
