@@ -1,6 +1,6 @@
 # Support ticket application
 
-Milestones 1–3: Persian RTL foundation, PostgreSQL schema/demo seed, role-based authentication, and customer ticket management. Staff inbox workflows and deployment remain later milestones.
+Milestones 1–4: Persian RTL support-ticket application with customer management and a complete staff inbox, replies, status history and assignment. Deployment remains a later milestone.
 
 ## Architecture
 
@@ -70,7 +70,7 @@ These deliberately public demonstration credentials are not database credentials
 | Staff | `maryam@example.test` | `DemoStaff1!2026` |
 | Staff | `reza@example.test` | `DemoStaff2!2026` |
 
-Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out visitors go to `/login`. Customers can now list, create, view, reply to and cancel eligible tickets. The staff page remains its Milestone 2 placeholder; staff inbox functionality is not implemented.
+Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out visitors go to `/login`. Customers can now list, create, view, reply to and cancel eligible tickets. Staff can search/filter/page through all active tickets, reply, assign active staff and change status according to the transition policy below.
 
 ## Migrations and seed
 
@@ -105,6 +105,7 @@ npm run check
 npm run build
 npm run test:auth
 npm run test:tickets
+npm run test:staff
 npm run test:health
 ```
 
@@ -122,7 +123,7 @@ curl --fail http://127.0.0.1:3000/api/health/db
 ## Remaining milestones
 
 3. Customer ticket management — complete.
-4. Staff pagination, filters, search, assignment and status history UI.
+4. Staff inbox, pagination, filters/search, replies, assignment and status controls — complete.
 5. Full UI/accessibility checks, nginx deployment, HTTPS decision and systemd startup.
 
 Cancel buttons use «انصراف». No explicit TypeScript `any` in application source.
@@ -147,10 +148,76 @@ Dates/times on customer ticket pages use the Persian calendar and Tehran time zo
 | `POST /api/customer/tickets/:id/replies` | Reply using `{body}`; HTTP 201; updates ticket timestamp |
 | `POST /api/customer/tickets/:id/cancel` | Empty object `{}`; soft-cancel an eligible open ticket |
 
-All mutations require the session-bound `X-CSRF-Token`. Ownership is always taken from the authenticated server session, never from request data or URL query parameters. Staff receive HTTP 403 from these customer-only APIs; staff APIs come in Milestone 4. Anonymous access gets HTTP 401. Another customer's, missing, and cancelled ticket UUIDs all return the same HTTP 404 message. Invalid UUIDs/bodies return HTTP 400.
+All mutations require the session-bound `X-CSRF-Token`. Ownership is always taken from the authenticated server session, never from request data or URL query parameters. Staff receive HTTP 403 from these customer-only APIs and use the staff API described below. Anonymous access gets HTTP 401. Another customer's, missing, and cancelled ticket UUIDs all return the same HTTP 404 message. Invalid UUIDs/bodies return HTTP 400.
 
 **Cancellation policy:** only `new`, `in_progress`, and `waiting_customer` count as open. `resolved` and `closed` cannot be cancelled (HTTP 409). The browser requires confirmation in a modal dialog; its dismiss button says exactly «انصراف». Cancellation sets only `tickets.is_cancelled=true` and updates its timestamp. Messages/history remain stored for audit but cannot be accessed through normal customer queries once the parent ticket is cancelled. There is no customer restore action.
 
-Replies are allowed on any owned non-cancelled ticket, including resolved/closed tickets. A reply does not automatically change its status. Customer status editing and staff workflow are outside this milestone. Ticket creation atomically saves the ticket, its description as the first message, and the initial `new` history entry. Row locks serialize replies/cancellation; a reply waiting behind a successful cancellation is rejected.
+Replies are allowed on any owned non-cancelled ticket, including resolved/closed tickets. A reply does not automatically change its status. Customers cannot edit status; staff manage status through their separate API. Ticket creation atomically saves the ticket, its description as the first message, and the initial `new` history entry. Row locks serialize replies/cancellation; a reply waiting behind a successful cancellation is rejected.
 
 `npm run test:tickets` runs PostgreSQL-backed customer security/workflow tests and customer rendering checks. It logs in with the public demo accounts, creates its own fixture tickets, and soft-cancels only those fixtures during cleanup. It never deletes records or modifies the 20 seeded tickets. Repeated test runs leave cancelled audit records and gaps in ticket numbers, as expected. The suite checks ownership/list isolation (including direct foreign UUIDs), malformed/spoofed data, CSRF, replies/order/update timestamps, hidden cancelled children, eligibility, post-cancellation denial and concurrent reply/cancellation. Frontend tests cover Persian loading/empty/error states, Jalali dates, safe text rendering and protected URL routing. No dependencies were added.
+
+## Milestone 4: support staff
+
+No new migration or environment setting is required for Milestone 4. Do not reset the database or rerun the seed to enable staff features. Restart the API and Vite dev processes if they were not watching changes.
+
+Staff start at `/staff/inbox`. The inbox lists all non-cancelled tickets by **creation time descending, then UUID descending**; the displayed last-update date changes after replies, assignment and status changes, but ordering remains by creation time. Open a ticket for metadata, chronological active messages and read-only status history. Staff can reply, assign an active staff member and choose one of the allowed next statuses.
+
+Search, status, priority, date boundaries, page and page size live in URL query parameters. Applying filters resets page to 1; changing pages preserves filters. Refreshing or sharing a filtered URL preserves its state. Detail links keep the same query so “back to inbox” returns to that filtered page. Invalid URL parameters show a Persian reset/retry state. Draft filter edits are applied when you press «اعمال فیلترها».
+
+### Staff API
+
+All routes require the current authenticated role `staff`; signed-out requests return 401 and customer requests return 403. Every POST also requires `X-CSRF-Token` and the configured Origin check.
+
+| Method / endpoint | Body or result |
+| --- | --- |
+| `GET /api/staff/tickets` | Filtered ticket summaries plus `page`, `page_size`, `total`, `total_pages` |
+| `GET /api/staff/tickets/:id` | Metadata, active messages and status history |
+| `GET /api/staff/members` | Active staff `{id,name}` only |
+| `POST /api/staff/tickets/:id/replies` | `{body}`; 1–10,000 trimmed characters |
+| `POST /api/staff/tickets/:id/status` | `{status}`; a permitted next status |
+| `POST /api/staff/tickets/:id/assignment` | `{assigned_to}`; active staff UUID |
+
+Inbox query parameters:
+
+| Parameter | Rules |
+| --- | --- |
+| `page` | Positive decimal integer, default 1, maximum 1,000,000 |
+| `page_size` | Positive decimal integer, default 20, maximum 100 |
+| `status` | One of the five known statuses; omit for all |
+| `priority` | `low`, `normal`, `high`, `urgent`; omit for all |
+| `q` | Trimmed literal case-insensitive substring of ticket number or subject; at most 100 characters |
+| `from` | Optional ISO 8601 timestamp with `Z` or explicit offset; inclusive |
+| `to` | Optional ISO 8601 timestamp with `Z` or explicit offset; exclusive; later than `from` |
+
+Unknown/invalid parameters return HTTP 400. `from`/`to` must be real supported timestamps (year zero is rejected). All filters are applied before both counting and pagination. Count/page are read in a single repeatable-read snapshot. A page beyond the last page returns an empty list with the correct total; the UI offers page 1. Empty results report `total_pages=1` for navigation. SQL parameters carry every search/filter/limit/offset value; `%` and `_` are literal search characters, not wildcard operators. Large-scale text search/index optimization and cursor pagination are outside this interview milestone.
+
+### Jalali date ranges
+
+The two Jalali pickers select the first and last calendar days inclusively, interpreted in **Asia/Tehran**, regardless of the browser/VM timezone. The browser converts them to UTC ISO strings: start of the first selected day, and start of the day after the last selected day. It sends no ambiguous Jalali strings to PostgreSQL.
+
+For example, selecting **۱۴۰۵/۰۱/۰۱** for both endpoints produces:
+
+```text
+from=2026-03-20T20:30:00.000Z
+to=2026-03-21T20:30:00.000Z
+```
+
+The API uses `created_at >= from AND created_at < to`. Conversion uses the IANA Tehran timezone, including historical daylight-saving rules; it does not assume the host timezone or a permanent fixed offset. UTC, Los Angeles, Tokyo, Persian New Year/leap-day and historical DST cases are tested. The shared `JalaliPicker` retains the CommonJS/default-export normalization that fixed the earlier blank-screen issue.
+
+### Status transition policy
+
+| Current status | Allowed next statuses |
+| --- | --- |
+| `new` | `in_progress` |
+| `in_progress` | `waiting_customer`, `resolved` |
+| `waiting_customer` | `in_progress`, `resolved` |
+| `resolved` | `in_progress` (reopen), `closed` |
+| `closed` | None; terminal status |
+
+This policy governs new API changes; existing demonstration history is preserved. Skipping from new to resolved/closed, returning to new, or submitting the same status returns HTTP 409. A transaction locks the active ticket, validates its current status, updates it and inserts history with the authenticated staff actor. Invalid or concurrent duplicate transitions do not create history records. Assignment and replies are independent of status: as with the existing customer behavior, replies on resolved/closed tickets do not reopen them. Assignment updates only `assigned_to` (plus the normal timestamp trigger); assigning the same staff member is a successful no-op. Unassignment is not part of this milestone. Active-ticket checks and row locks prevent writes to cancelled tickets; these return 404. Customer IDs, inactive staff, unknown IDs, malformed UUIDs and caller-supplied actor fields are rejected.
+
+### Staff verification
+
+`npm run test:staff` runs backend integration tests and frontend URL/date/rendering tests. It creates its own tickets and an already-cancelled staff fixture, then soft-cancels test tickets/messages/history. It never alters the 20 original seed tickets or deletes records. The inactive fixture remains as a cancelled audit record.
+
+The suite covers both seeded customers, customer/anonymous denial on every staff endpoint, pagination/totals/stable tie ordering, combined filters, number/subject search, date boundaries, request validation, CSRF/Origin/actor spoofing, staff reply authors/order, transition history/reopening/invalid/concurrent changes, active-only assignment and cancelled-ticket denial. React tests render the actual staff Landing inbox/detail with real Jalali filter/footer pickers, persisted filters, pagination and loading/empty/error states. Picker text initializes during browser mounting, so calendar conversion and URL restoration are separately tested as well. Full browser clicking/keyboard interaction remains a manual review step; it is not claimed by server rendering tests.

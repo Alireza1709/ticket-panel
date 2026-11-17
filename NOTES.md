@@ -1,6 +1,6 @@
 # Implementation notes
 
-## Milestones 1–3
+## Milestones 1–4
 
 The existing npm workspaces, localhost-only Express/Vite listeners, API proxy, Tailwind v4 and shadcn-style Button are retained. No dependencies were added for Milestone 2. The user completed PostgreSQL provisioning (`tickets_user`, `tickets_db`) and both health checks passed before Milestone 2.
 
@@ -66,3 +66,27 @@ Final verification passed: `npm run check`, `npm run build`, `npm run test:ticke
 ## Scope after Milestone 3
 
 Customer ticket management is complete; defer staff inbox/search/pagination/assignment/status changes, attachment uploads, nginx/systemd deployment and full browser/accessibility testing. Previous authentication/session security limitations still apply (single-process login limiter and retained expired-session rows).
+
+## Milestone 4 decisions
+
+- Inspected current SQL migrations, customer/auth APIs, route guard, real-Landing date-picker regression and component/test conventions before editing. The existing schema supports every staff feature, so no migration, seed rerun, environment change or dependency addition was needed.
+- Added a separate staff router behind fresh server-side role checks, preserving customer endpoint ownership rules. The existing overview endpoints remain compatible, but the staff placeholder is replaced by the inbox. The layout no longer needs an overview-only request because actual ticket routes enforce role access.
+- Inbox filters are strict Zod-validated parameters; bounded positive pages/page sizes and 100-character literal search. A static parameterized WHERE clause is shared by count and rows. Both queries use one repeatable-read snapshot, with stable `(created_at DESC, id DESC)` ordering and all filters before LIMIT/OFFSET. Returned summaries omit emails, hashes, session data and unnecessary ticket bodies.
+- Staff detail uses a consistent read-only snapshot and the same safe DTO shape as customer detail, letting frontend message/history presentation be reused. Cancelled users are excluded from joins, with Persian historical-name fallbacks; cancelled messages/history/tickets are excluded from ordinary reads.
+- Replies/status/assignment lock the active parent ticket in transactions. Status and history commit together with the session actor. The documented graph permits customer-information waits and reopening resolved tickets; closed is terminal. Assignment validates/locks an active staff target with FOR SHARE, updates only the assignee, and leaves duplicate assignment as a no-op. No caller-supplied actor or ownership field is accepted.
+- Reused the existing CSRF/Origin middleware for all writes. Customer access to inbox/detail/members/status/assignment/replies is denied even with real ticket UUIDs. Raw user input is never inserted into SQL syntax.
+- Centralized the corrected date-picker export normalization in a small JalaliPicker component, shared by footer/from/to controls. DateObject's CommonJS wrapper is normalized too. Existing calendar/locale/RTL behavior is preserved; real rendering tests cover all picker-bearing layouts.
+- Date selection uses two inclusive Jalali day controls. Conversion finds the first instant of the corresponding Tehran calendar day using Intl/IANA data, avoiding browser timezone assumptions and handling historical midnight DST gaps. End dates map to the next day's exclusive boundary. URL state stores only explicit ISO timestamps; invalid/year-zero timestamps are rejected before SQL or calendar conversion.
+- The route snapshot now observes pathname plus search. Staff inbox/detail paths retain query parameters through redirects, page changes, refresh and return links. URL filters initialize React Hook Form; applying filters resets the page. Real picker inputs initialize after mounting, so SSR tests verify their presence and separately verify conversion/restoration.
+- Shared customer ReplyForm now has a defaulted audience parameter; customer behavior is unchanged. Thread/history presentation is reused. Mutations refresh staff inbox/detail and relevant existing ticket caches. Protected request failures trigger the existing account refresh behavior.
+- No customer cancellation, authentication/session or password behavior changed. No staff creation/deletion, unassignment, priority editing, deployment or voice-note feature was added.
+
+## Milestone 4 verification record
+
+Staff API and UI suites passed, followed by all existing auth, customer, health and routing tests, strict TypeScript checks and production builds. The security review added rejection of ISO year zero (unsupported by PostgreSQL) and finite timestamp checks; final `npm run check`, `npm run test:staff` and `npm run build` passed after this refinement. Tests use only newly created fixtures; original seed counts remain correct. All cleanup is soft cancellation, with no DELETE/TRUNCATE/DROP or database reset. No credentials/cookies/secrets were logged or committed.
+
+The integrated React tests render real staff inbox/detail layouts with real date pickers and cover Persian states and restored URL form values. Calendar tests pass with UTC, America/Los_Angeles and Asia/Tokyo host zones, including Persian New Year, leap Esfand and a 23-hour Tehran DST day. Full browser clicks/keyboard/accessibility review remains manual. The existing non-blocking Vite JavaScript bundle warning remains; the final Milestone 4 build measured 537.97 kB (164.77 kB gzipped).
+
+## Remaining after Milestone 4
+
+Deployment/systemd/nginx/TLS decisions, full browser/accessibility review, optional performance/code splitting and session-retention housekeeping remain. Staff inbox/status/assignment/replies and customer workflows are implemented. The application still uses a single-process in-memory login limiter and offset pagination; search is appropriate for this small interview dataset. No bonus voice-note or deployment work was started.
