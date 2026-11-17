@@ -119,14 +119,14 @@ curl --fail http://127.0.0.1:3000/api/health/db
 
 `npm start` runs the compiled API after `npm run build`; it does not serve the frontend yet. If you change `PORT`, update the Vite proxy too. Browser automation is not installed; frontend verification includes TypeScript, production build, route tests and customer component rendering tests, not browser click tests.
 
-## Remaining milestones
+## Completion status
 
 3. Customer ticket management — complete.
 4. Staff inbox, pagination, filters/search, replies, assignment and status controls — complete.
-5A. HTTP production deployment and reboot preparation — see the verification record below.
-5B. Remaining manual browser/reboot verification and optional improvements.
+5A. HTTP production deployment — installed; post-boot services and port-80 checks verified. Full reboot session/data verification is operator-reported; see the evidence record below.
+5B. Full browser interaction and fresh-VM rebuild are not independently verified. Voice-note bonus is not implemented.
 
-Cancel buttons use «انصراف». No explicit TypeScript `any` in application source.
+Dismiss/back-out buttons use exactly «انصراف», including form/dialog dismissal and leaving ticket detail. «لغو تیکت» opens the ticket-cancellation dialog; «تأیید لغو تیکت» performs the confirmed destructive action. Pagination and filter-reset controls retain their descriptive labels. This distinguishes abandoning a view/action from soft-cancelling a ticket. No explicit TypeScript `any` in application source.
 
 ## Milestone 3: customer tickets
 
@@ -411,7 +411,7 @@ cd /home/drbtest01/tickets-app
 node deploy/smoke.mjs http://192.168.113.113 --verify-restart
 ```
 
-The API must listen only at 127.0.0.1:3001; PostgreSQL only on loopback:5432; nginx on port 80; SSH remains on 5150. Confirm the IP is still assigned locally before using that URL. Finally reload a nested browser route and confirm both roles work without starting any development server. A full reboot is pending manual execution; it has not been performed by Codex.
+The API must listen only at 127.0.0.1:3001; PostgreSQL only on loopback:5432; nginx on port 80; SSH remains on 5150. Confirm the IP is still assigned locally before using that URL. Finally reload a nested browser route and confirm both roles work without starting any development server. This checklist is retained for future operator use; current reboot evidence is recorded below. Codex has not executed a reboot.
 
 ### Troubleshooting and verification record
 
@@ -423,4 +423,8 @@ The API must listen only at 127.0.0.1:3001; PostgreSQL only on loopback:5432; ng
 - nginx cannot read static files: publish compiled dist under /var/www as shown. Do not loosen the private home directory or expose the repository.
 - Auth tests found a legitimate extra browser reply (37 messages vs 36 seed fixtures). The assertion now counts fixed seed-message/history IDs rather than deleting data or treating ordinary browser activity as a failure.
 - Verified so far: TypeScript/builds, production HTTP opt-in/cookie tests, existing auth/customer/staff/health suites, repeatable migration checks and normal-user nginx/unit syntax + production-mode proxy rehearsal. The original four accounts, twenty seed tickets and browser-added reply were preserved.
-- After the operator completed the manual installation: actual nginx port-80 static/nested-route/API checks passed, all required services were active/enabled, the API ran as drbtest01 on loopback:3001, and the root-owned environment was 0600. A manual systemctl restart changed the service PID; saved customer/staff sessions, the new test ticket and all 20 original ticket summaries survived unchanged. Test cleanup then soft-cancelled its ticket and logged out its sessions. Full VM reboot and browser interaction checks remain manual. The existing approximately 538 kB JS bundle warning is non-blocking. No voice-note work was started.
+- After the operator completed the manual installation: actual nginx port-80 static/nested-route/API checks passed, all required services were active/enabled, the API ran as drbtest01 on loopback:3001, and the root-owned environment was 0600. A manual systemctl restart changed the service PID; saved customer/staff sessions, the new test ticket and all 20 original ticket summaries survived unchanged. Test cleanup then soft-cancelled its ticket and logged out its sessions. The existing approximately 538 kB JS bundle warning is non-blocking. No voice-note work was started.
+
+- Reboot evidence reviewed on 2026-11-17: the operator reports completing full reboot verification. The journal records distinct previous/current boots, with current boot time 11:32:39 UTC. nginx became active at 11:33:57; the API and PostgreSQL at 11:34:00. Required services are enabled at boot; the acceptance audit verified working port-80 health, SPA routes and matching published assets after this boot. This establishes a real boot and working post-boot services, beyond enablement alone.
+- The ignored smoke state contains only a scrubbed completion marker, modified at 11:37:29 UTC. It retains no boot ID or assertion output; `smoke.mjs` writes it during cleanup, so the marker alone is not proof that every verification assertion passed. Full-reboot session/data persistence remains operator-reported and is not independently established from retained artifacts. Browser interactions and a fresh-VM rebuild are also not independently verified. Do not rerun a reboot merely to update this record.
+- Final correction verification: `npm run check`, `npm run build`, `npm run test:auth`, `npm run test:tickets`, `npm run test:staff`, `npm run test:health` and `npm run test:production` all passed (50 reported tests, including parent tests). NOTES was typeset to one A4 page with 18 mm margins, 11 pt body text and 14 pt leading. Six personal-hours placeholders remain for the owner. The corrected frontend was built, but not copied to `/var/www/tickets-app`; publish `client/dist/.` there using the existing manual update procedure before submitting the revised UI. No configuration change, API restart or reboot is needed for these text-only frontend changes.

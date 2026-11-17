@@ -242,6 +242,7 @@ test("integrated staff detail includes real footer picker, reply, assignment, hi
       "ارسال پاسخ",
       "تغییر وضعیت",
       "واگذاری به کارشناس",
+      "انصراف",
       "تاریخچه وضعیت",
       "متن مشتری",
       "sample-date",

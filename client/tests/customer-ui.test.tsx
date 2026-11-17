@@ -187,7 +187,7 @@ test("foreign/missing-ticket errors render a safe return path without thread or 
     .catch(noop);
   const html = detail(queryClient);
   assert.match(html, /تیکت یافت نشد/);
-  assert.match(html, /بازگشت به فهرست/);
+  assert.match(html, /انصراف/);
   assert.equal(html.includes("ارسال پاسخ"), false);
   queryClient.clear();
 });

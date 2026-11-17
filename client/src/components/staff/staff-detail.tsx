@@ -49,7 +49,7 @@ export function StaffDetail({
   const back = (
     <Button variant="outline" onClick={() => navigate(`/staff/inbox${search}`)}>
       <ArrowRight size={16} />
-      بازگشت به صندوق
+      انصراف
     </Button>
   );
   if (query.isPending)

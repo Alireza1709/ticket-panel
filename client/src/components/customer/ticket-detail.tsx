@@ -117,7 +117,7 @@ export function TicketDetail({
   const back = (
     <Button variant="outline" onClick={() => navigate("/customer/tickets")}>
       <ArrowRight size={16} />
-      بازگشت به فهرست
+      انصراف
     </Button>
   );
   if (query.isPending)
