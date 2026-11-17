@@ -25,6 +25,7 @@ import {
   userSchema,
   type User,
 } from "@/lib/api";
+import { CustomerTickets } from "@/components/customer/customer-tickets";
 import { homeFor, routeFor } from "@/lib/auth-routing";
 
 const loginSchema = z.object({
@@ -40,9 +41,9 @@ const loginSchema = z.object({
     .max(128, "گذرواژه بیش از حد طولانی است"),
 });
 type LoginValues = z.infer<typeof loginSchema>;
-function navigate(path: string) {
+function navigate(path: string, replace = true) {
   if (window.location.pathname !== path) {
-    window.history.replaceState(null, "", path);
+    window.history[replace ? "replaceState" : "pushState"](null, "", path);
     window.dispatchEvent(new PopStateEvent("popstate"));
   }
 }
@@ -208,7 +209,15 @@ function Login({
   );
 }
 
-function Landing({ user, onLogout }: { user: User; onLogout: () => void }) {
+function Landing({
+  user,
+  onLogout,
+  path,
+}: {
+  user: User;
+  onLogout: () => void;
+  path: string;
+}) {
   const client = useQueryClient();
   const csrf = useQuery({
     queryKey: ["csrf"],
@@ -270,31 +279,41 @@ function Landing({ user, onLogout }: { user: User; onLogout: () => void }) {
         </Button>
       </header>
       <section className="space-y-6 rounded-2xl border border-border bg-white p-6 shadow-sm">
-        <h2 className="text-2xl font-semibold">
-          {user.role === "staff" ? "صندوق پشتیبانی" : "تیکت‌های من"}
-        </h2>
-        {overview.isPending ? (
-          <Loading />
-        ) : overview.isError ? (
-          <Failure
-            error={overview.error}
-            retry={() => {
-              void overview.refetch();
-            }}
+        {user.role === "customer" ? (
+          <CustomerTickets
+            userId={user.id}
+            path={path}
+            navigate={(destination) => navigate(destination, false)}
           />
         ) : (
           <>
-            <p className="text-slate-600">{overview.data.message}</p>
-            <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-              <Inbox size={36} className="mx-auto mb-3 text-slate-400" />
-              <h3 className="font-medium">
-                نمایش تیکت‌ها در مرحله بعد فعال می‌شود
-              </h3>
-              <p className="mt-2 text-sm text-slate-500">
-                ورود و دسترسی حساب شما آماده است؛ فهرست تیکت‌ها هنوز به این صفحه
-                متصل نشده است.
-              </p>
-            </div>
+            <h2 className="text-2xl font-semibold">
+              {user.role === "staff" ? "صندوق پشتیبانی" : "تیکت‌های من"}
+            </h2>
+            {overview.isPending ? (
+              <Loading />
+            ) : overview.isError ? (
+              <Failure
+                error={overview.error}
+                retry={() => {
+                  void overview.refetch();
+                }}
+              />
+            ) : (
+              <>
+                <p className="text-slate-600">{overview.data.message}</p>
+                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
+                  <Inbox size={36} className="mx-auto mb-3 text-slate-400" />
+                  <h3 className="font-medium">
+                    نمایش تیکت‌ها در مرحله بعد فعال می‌شود
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-500">
+                    ورود و دسترسی حساب شما آماده است؛ فهرست تیکت‌ها هنوز به این
+                    صفحه متصل نشده است.
+                  </p>
+                </div>
+              </>
+            )}
           </>
         )}
         {logout.isError && (
@@ -375,7 +394,7 @@ export function App() {
       ) : path !== target ? (
         <Loading message="در حال انتقال…" />
       ) : user ? (
-        <Landing user={user} onLogout={signedOut} />
+        <Landing user={user} onLogout={signedOut} path={path} />
       ) : (
         <Login
           onLogin={(account, csrfToken) => {

@@ -16,3 +16,17 @@ test("staff go to their inbox, including when opening a customer URL", () => {
   for (const path of ["/login", "/", "/customer/tickets", "/staff/inbox"])
     assert.equal(routeFor("staff", path), "/staff/inbox");
 });
+test("customer create/detail URLs stay protected and survive direct navigation", () => {
+  for (const path of [
+    "/customer/tickets/new",
+    "/customer/tickets/20000000-0000-4000-8000-000000000001",
+  ]) {
+    assert.equal(routeFor("customer", path), path);
+    assert.equal(routeFor(null, path), "/login");
+    assert.equal(routeFor("staff", path), "/staff/inbox");
+  }
+  assert.equal(
+    routeFor("customer", "/customer/tickets/not-a-uuid"),
+    "/customer/tickets",
+  );
+});

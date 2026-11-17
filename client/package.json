@@ -7,7 +7,8 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
-    "test:routes": "node --import tsx --test tests/auth-routing.test.ts"
+    "test:routes": "node --import tsx --test tests/auth-routing.test.ts",
+    "test:customer": "node --import tsx --test tests/customer-ui.test.tsx"
   },
   "dependencies": {
     "@hookform/resolvers": "^7.0.7",
