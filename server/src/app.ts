@@ -5,6 +5,7 @@ import { pool } from "./db.js";
 import { config } from "./config.js";
 import { PostgresSessionStore } from "./session-store.js";
 import { customerTickets } from "./customer-tickets.js";
+import { staffRouter } from "./staff-tickets.js";
 import {
   authRouter,
   cookieOptions,
@@ -47,6 +48,7 @@ app.use(
 );
 app.use("/api/auth", authRouter);
 app.use("/api/customer/tickets", customerTickets);
+app.use("/api/staff", staffRouter);
 app.get("/api/customer/overview", requireRole("customer"), (_req, res) => {
   res.json({ user: res.locals.user, message: "به بخش تیکت‌های خود خوش آمدید" });
 });

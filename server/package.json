@@ -13,7 +13,8 @@
     "db:seed": "tsx src/seed.ts",
     "test:auth": "npm run build && node --test tests/auth.test.mjs",
     "config:session": "node scripts/session-secret.mjs",
-    "test:tickets": "npm run build && node --test tests/customer-tickets.test.mjs"
+    "test:tickets": "npm run build && node --test tests/customer-tickets.test.mjs",
+    "test:staff": "npm run build && node --test tests/staff-tickets.test.mjs"
   },
   "dependencies": {
     "argon2": "^0.45.2",
