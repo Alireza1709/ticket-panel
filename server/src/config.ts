@@ -10,6 +10,10 @@ const schema = z.object({
     .min(48)
     .refine((value) => !value.startsWith("REPLACE_")),
   APP_ORIGIN: z.string().url().default("http://localhost:5173"),
+  ALLOW_INSECURE_HTTP: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
   DATABASE_URL: z
     .string()
     .url()
@@ -23,10 +27,15 @@ if (!parsed.success) {
   process.exit(1);
 }
 if (
-  parsed.data.NODE_ENV === "production" &&
-  !parsed.data.APP_ORIGIN.startsWith("https://")
+  !["http:", "https:"].includes(new URL(parsed.data.APP_ORIGIN).protocol) ||
+  new URL(parsed.data.APP_ORIGIN).origin !== parsed.data.APP_ORIGIN ||
+  (parsed.data.NODE_ENV === "production" &&
+    !parsed.data.APP_ORIGIN.startsWith("https://") &&
+    !parsed.data.ALLOW_INSECURE_HTTP)
 ) {
-  console.error("در محیط عملیاتی نشانی امن سامانه الزامی است.");
+  console.error(
+    "نشانی سامانه معتبر نیست؛ اجرای عملیاتی روی اچ‌تی‌تی‌پی نیازمند تنظیم صریح است.",
+  );
   process.exit(1);
 }
 export const config = parsed.data;

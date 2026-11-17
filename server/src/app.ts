@@ -14,7 +14,20 @@ import {
 } from "./auth.js";
 export const app = express();
 app.disable("x-powered-by");
-app.use(helmet());
+app.use(
+  helmet({
+    strictTransportSecurity: config.APP_ORIGIN.startsWith("https://")
+      ? undefined
+      : false,
+    contentSecurityPolicy: {
+      directives: {
+        upgradeInsecureRequests: config.APP_ORIGIN.startsWith("https://")
+          ? []
+          : null,
+      },
+    },
+  }),
+);
 app.use(express.json({ limit: "100kb" }));
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", message: "سرور فعال است" });

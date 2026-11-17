@@ -33,7 +33,7 @@ export const sessionCookieName = cookieName;
 export const cookieOptions = {
   httpOnly: true,
   sameSite: "lax" as const,
-  secure: config.NODE_ENV === "production",
+  secure: config.APP_ORIGIN.startsWith("https://"),
   path: "/",
 };
 export const authRouter = Router();
