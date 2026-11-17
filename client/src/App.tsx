@@ -11,7 +11,7 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import { z } from "zod";
-import DatePicker from "react-multi-date-picker";
+import DatePickerExport from "react-multi-date-picker";
 import persian from "react-date-object/calendars/persian";
 import persianFa from "react-date-object/locales/persian_fa";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,11 @@ import {
 } from "@/lib/api";
 import { CustomerTickets } from "@/components/customer/customer-tickets";
 import { homeFor, routeFor } from "@/lib/auth-routing";
+
+// CommonJS interop may wrap the React component in a second default export.
+const DatePicker =
+  (DatePickerExport as unknown as { default?: typeof DatePickerExport })
+    .default ?? DatePickerExport;
 
 const loginSchema = z.object({
   email: z
@@ -209,7 +214,7 @@ function Login({
   );
 }
 
-function Landing({
+export function Landing({
   user,
   onLogout,
   path,

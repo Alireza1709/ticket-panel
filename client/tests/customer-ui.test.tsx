@@ -8,6 +8,7 @@ import { TicketDetail } from "../src/components/customer/ticket-detail";
 import { CreateTicket } from "../src/components/customer/create-ticket";
 import { ApiError } from "../src/lib/api";
 import { createTicketSchema, type Detail } from "../src/lib/tickets";
+import { Landing } from "../src/App";
 
 const userId = "10000000-0000-4000-8000-000000000001";
 const id = "20000000-0000-4000-8000-000000000001";
@@ -35,6 +36,45 @@ function detail(queryClient: QueryClient) {
     </QueryClientProvider>,
   );
 }
+
+test("Landing renders the real Persian date picker for both roles without an invalid element", () => {
+  for (const role of ["customer", "staff"] as const) {
+    const queryClient = client();
+    const user = {
+      id: userId,
+      name: "کاربر آزمایشی",
+      email: "demo@example.test",
+      role,
+    };
+    queryClient.setQueryData(["csrf"], { csrfToken: "f".repeat(64) });
+    queryClient.setQueryData(["health"], { status: "ok" });
+    queryClient.setQueryData(["overview", userId, role], {
+      user,
+      message: "خوش آمدید",
+    });
+    queryClient.setQueryData(["tickets", userId], { tickets: [] });
+    try {
+      // No date-picker mock: exercise Landing's actual import and Persian props.
+      const html = renderToStaticMarkup(
+        <QueryClientProvider client={queryClient}>
+          <main dir="rtl">
+            <Landing
+              user={user}
+              onLogout={noop}
+              path={role === "customer" ? "/customer/tickets" : "/staff/inbox"}
+            />
+          </main>
+        </QueryClientProvider>,
+      );
+      assert.match(html, /dir="rtl"/);
+      assert.match(html, /تقویم شمسی/);
+      assert.match(html, /<input[^>]*id="sample-date"/);
+      assert.match(html, /انتخاب تاریخ/);
+    } finally {
+      queryClient.clear();
+    }
+  }
+});
 
 test("customer list renders Persian loading, empty, error and populated states", async () => {
   const queryClient = client();
