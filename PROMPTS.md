@@ -23,3 +23,13 @@ Authentication scope: login/logout/current user, server-side sessions, backend r
 Required tests cover valid/invalid login, anonymous access denial, customer/staff isolation, redirects, seed counts and successful TypeScript/builds. Update all three documentation files, create meaningful local commits after verification, explain key decisions for a beginner, and stop for review after Milestone 2.
 
 Implementation: native SQL migration files/checksum runner, transactional fixed-ID demo seed, PostgreSQL express-session Store using existing pg, Argon2id, CSRF token + Origin checks, login limiter, role middleware and React Hook Form/TanStack Query frontend. A generated signing secret is stored only in ignored owner-only .env. Demonstration-only login credentials are intentionally documented as requested.
+
+## Milestone 3
+
+User confirmed Milestones 1–2 work in the browser and authorized customer ticket management only. Required inspecting existing schema/routes/components; preserving client/server folders, authentication and staff placeholder; implementing own-ticket list, validated creation with category, human-readable ticket numbers, metadata/detail, chronological message thread, read-only history, replies with timestamp refresh, and confirmed soft cancellation of eligible open tickets.
+
+Security requirements: server-side ownership checks, session-derived customer ID, CSRF on mutations, parameterized SQL, non-cancelled ordinary queries, transactions, direct API tests using another customer's UUID, and anonymous denial. UI requirements: Persian RTL, Jalali dates, existing stack, small components, clear loading/empty/error/success states, exactly انصراف for dismiss buttons, no TypeScript any.
+
+Required process: backend, integration tests, frontend, regression/build checks, documentation updates and small verified Git commits. Keep credentials private, contact no other employer network machines, run no destructive database changes, and stop after Milestone 3 without starting Milestone 4.
+
+Implementation choices: additive category migration 002; customer router behind existing role middleware; foreign/cancelled/missing ticket UUIDs return identical 404; create transaction includes first message/history; row-locked reply/cancel transactions; open statuses are new/in_progress/waiting_customer; customer replies do not change status; native modal confirmation and per-user TanStack Query caches; existing auth redirects retained with customer detail/new routes added. Tests create their own tickets and use soft cancellation for cleanup. Existing seed fixtures remain intact.

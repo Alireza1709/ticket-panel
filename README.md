@@ -1,6 +1,6 @@
 # Support ticket application
 
-Milestones 1–2: Persian RTL foundation, PostgreSQL schema/demo seed, and role-based authentication. Ticket workflows and deployment are later milestones.
+Milestones 1–3: Persian RTL foundation, PostgreSQL schema/demo seed, role-based authentication, and customer ticket management. Staff inbox workflows and deployment remain later milestones.
 
 ## Architecture
 
@@ -70,7 +70,7 @@ These deliberately public demonstration credentials are not database credentials
 | Staff | `maryam@example.test` | `DemoStaff1!2026` |
 | Staff | `reza@example.test` | `DemoStaff2!2026` |
 
-Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out visitors go to `/login`. Landing pages have loading/error states and an explicit placeholder: the seeded tickets are in PostgreSQL but listing and editing them are not implemented in this milestone.
+Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out visitors go to `/login`. Customers can now list, create, view, reply to and cancel eligible tickets. The staff page remains its Milestone 2 placeholder; staff inbox functionality is not implemented.
 
 ## Migrations and seed
 
@@ -80,7 +80,7 @@ Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out 
 - Every table has UUID `id`, `created_at`, `created_by`, and `is_cancelled DEFAULT FALSE`. Application tables also have `updated_at`, maintained by triggers. Application creators are required; infrastructure creators are nullable before login. The initial staff account references itself as creator using a deferred foreign key.
 - Foreign keys enforce customer ownership and staff-only assignment. Statuses: `new`, `in_progress`, `waiting_customer`, `resolved`, `closed`. Priorities: `low`, `normal`, `high`, `urgent`.
 - Ticket numbers such as `TKT-00000001` use a unique sequence. Gaps are normal, including after repeat seed runs.
-- Database guards reject hard deletion/truncation. Queries exclude cancelled users/sessions; future ticket queries must also exclude cancelled records. Logout cancels and clears its session row.
+- Database guards reject hard deletion/truncation. Queries exclude cancelled users/sessions; customer ticket/message/history queries also exclude cancelled records. Logout cancels and clears its session row.
 - Seed: 2 customers, 2 staff, 20 tickets split equally, 36 messages and 36 history entries across all statuses/priorities. Fixed IDs and conflict handling make reruns non-duplicating and preserve edits/cancellations. Seeding does not reset existing passwords. Seed refuses production mode.
 
 ## Authentication and API
@@ -104,6 +104,7 @@ State-changing requests send `X-CSRF-Token` from the CSRF endpoint; login rotate
 npm run check
 npm run build
 npm run test:auth
+npm run test:tickets
 npm run test:health
 ```
 
@@ -116,12 +117,40 @@ curl --fail http://127.0.0.1:3000/api/health
 curl --fail http://127.0.0.1:3000/api/health/db
 ```
 
-`npm start` runs the compiled API after `npm run build`; it does not serve the frontend yet. If you change `PORT`, update the Vite proxy too. Browser automation is not installed; current frontend verification includes TypeScript, production build and routing unit tests, not browser click tests.
+`npm start` runs the compiled API after `npm run build`; it does not serve the frontend yet. If you change `PORT`, update the Vite proxy too. Browser automation is not installed; frontend verification includes TypeScript, production build, route tests and customer component rendering tests, not browser click tests.
 
 ## Remaining milestones
 
-3. Customer ticket creation, list, detail, replies and cancellation.
+3. Customer ticket management — complete.
 4. Staff pagination, filters, search, assignment and status history UI.
 5. Full UI/accessibility checks, nginx deployment, HTTPS decision and systemd startup.
 
 Cancel buttons use «انصراف». No explicit TypeScript `any` in application source.
+
+## Milestone 3: customer tickets
+
+After updating this checkout, run `npm run db:migrate` before starting the API. Migration `002_ticket_category.sql` adds only a constrained category column; existing tickets receive `other` and are preserved. Do not edit migration 001 or recreate the database.
+
+Customer pages:
+
+- `/customer/tickets`: your non-cancelled tickets, newest update first, with ticket number, subject, Persian priority/status labels and Jalali last-update times.
+- `/customer/tickets/new`: React Hook Form/Zod form for subject, description, priority and category.
+- `/customer/tickets/:uuid`: ticket metadata, customer/assignee, chronological messages and read-only status history. Reply and cancellation feedback appears in Persian. Direct links and browser back/forward navigation are supported.
+
+Dates/times on customer ticket pages use the Persian calendar and Tehran time zone. Categories are `technical` (فنی), `billing` (مالی), `account` (حساب کاربری), and `other` (سایر). Subject length is 3–200 characters after trimming; descriptions/replies are 1–10,000. The backend rejects unknown body fields, including attempted `customer_id` or `created_by` overrides.
+
+| Method / endpoint | Customer-only behavior |
+| --- | --- |
+| `GET /api/customer/tickets` | List only session customer's active tickets |
+| `POST /api/customer/tickets` | Create from `{subject,description,priority,category}`; HTTP 201 |
+| `GET /api/customer/tickets/:id` | Metadata, active message thread and active status history |
+| `POST /api/customer/tickets/:id/replies` | Reply using `{body}`; HTTP 201; updates ticket timestamp |
+| `POST /api/customer/tickets/:id/cancel` | Empty object `{}`; soft-cancel an eligible open ticket |
+
+All mutations require the session-bound `X-CSRF-Token`. Ownership is always taken from the authenticated server session, never from request data or URL query parameters. Staff receive HTTP 403 from these customer-only APIs; staff APIs come in Milestone 4. Anonymous access gets HTTP 401. Another customer's, missing, and cancelled ticket UUIDs all return the same HTTP 404 message. Invalid UUIDs/bodies return HTTP 400.
+
+**Cancellation policy:** only `new`, `in_progress`, and `waiting_customer` count as open. `resolved` and `closed` cannot be cancelled (HTTP 409). The browser requires confirmation in a modal dialog; its dismiss button says exactly «انصراف». Cancellation sets only `tickets.is_cancelled=true` and updates its timestamp. Messages/history remain stored for audit but cannot be accessed through normal customer queries once the parent ticket is cancelled. There is no customer restore action.
+
+Replies are allowed on any owned non-cancelled ticket, including resolved/closed tickets. A reply does not automatically change its status. Customer status editing and staff workflow are outside this milestone. Ticket creation atomically saves the ticket, its description as the first message, and the initial `new` history entry. Row locks serialize replies/cancellation; a reply waiting behind a successful cancellation is rejected.
+
+`npm run test:tickets` runs PostgreSQL-backed customer security/workflow tests and customer rendering checks. It logs in with the public demo accounts, creates its own fixture tickets, and soft-cancels only those fixtures during cleanup. It never deletes records or modifies the 20 seeded tickets. Repeated test runs leave cancelled audit records and gaps in ticket numbers, as expected. The suite checks ownership/list isolation (including direct foreign UUIDs), malformed/spoofed data, CSRF, replies/order/update timestamps, hidden cancelled children, eligibility, post-cancellation denial and concurrent reply/cancellation. Frontend tests cover Persian loading/empty/error states, Jalali dates, safe text rendering and protected URL routing. No dependencies were added.
