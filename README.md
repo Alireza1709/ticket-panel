@@ -1,13 +1,13 @@
 # Support ticket application
 
-Milestones 1–4: Persian RTL support-ticket application with customer management and a complete staff inbox, replies, status history and assignment. Deployment remains a later milestone.
+Milestones 1–4: Persian RTL support-ticket application with customer management and a complete staff inbox, replies, status history and assignment. Milestone 5A adds a reviewed HTTP production deployment; see the deployment section below.
 
 ## Architecture
 
 - `client/`: React + Vite + strict TypeScript; Tailwind CSS, shadcn-style Button, lucide icons, TanStack Query, React Hook Form + Zod, Jalali calendar/date picker.
 - `server/`: Express + strict TypeScript, PostgreSQL pool, Argon2id passwords, PostgreSQL-backed express-session sessions.
 - Vite proxies `/api` to Express on `127.0.0.1:3000`. Both development servers bind to localhost.
-- Later deployment: nginx on port 80 serves `client/dist` and proxies `/api`; systemd starts Express after reboot. These are not implemented yet.
+- Production deployment: nginx on port 80 serves only `client/dist` copied to `/var/www/tickets-app`, and proxies `/api` to the compiled API on `127.0.0.1:3001`. `tickets-api.service` runs the API as `drbtest01` after reboot. Installation uses the manual sudo steps below.
 
 ## Existing VM: start here
 
@@ -17,9 +17,7 @@ From the project root:
 
 ```bash
 npm ci
-npm run config:session
 npm run db:migrate
-npm run db:seed
 npm run dev:server
 ```
 
@@ -57,7 +55,7 @@ npm run db:migrate
 npm run db:seed
 ```
 
-`config:session` generates a random signing secret directly in the ignored file, prints no secret, sets permissions to `0600`, and preserves an existing valid secret. Keep this secret stable across restarts; replacing it signs everyone out. `NODE_ENV=production` requires an HTTPS `APP_ORIGIN`; production session cookies use `Secure`. Local HTTP uses `NODE_ENV=development`. Production HTTPS/reverse-proxy deployment is a later milestone.
+`config:session` generates a random signing secret directly in the ignored file, prints no secret, sets permissions to `0600`, and preserves an existing valid secret. Keep this secret stable across restarts; replacing it signs everyone out. `NODE_ENV=production` normally requires an HTTPS `APP_ORIGIN`, with Secure cookies. The employer-required HTTP demo uses an explicit `ALLOW_INSECURE_HTTP=true` exception in its separate restricted production environment file. HTTP cookies remain HttpOnly and SameSite=Lax but cannot be Secure. HTTPS origins keep Secure cookies even when that flag is true.
 
 ## Demo logins — development only
 
@@ -107,6 +105,7 @@ npm run test:auth
 npm run test:tickets
 npm run test:staff
 npm run test:health
+npm run test:production
 ```
 
 `test:auth` uses the real local development database after migration/seed. It checks audit columns/guards, seed counts/hashes, correct and wrong passwords, input validation, unauthenticated/role-denied access, CSRF/Origin checks, session rotation/persistence, logout replay rejection, rate limiting, and frontend redirect decisions. It creates/cancels session records but does not delete application records. Demo passwords must still be unchanged for these checks. Run against a development database, not production.
@@ -124,7 +123,8 @@ curl --fail http://127.0.0.1:3000/api/health/db
 
 3. Customer ticket management — complete.
 4. Staff inbox, pagination, filters/search, replies, assignment and status controls — complete.
-5. Full UI/accessibility checks, nginx deployment, HTTPS decision and systemd startup.
+5A. HTTP production deployment and reboot preparation — see the verification record below.
+5B. Remaining manual browser/reboot verification and optional improvements.
 
 Cancel buttons use «انصراف». No explicit TypeScript `any` in application source.
 
@@ -221,3 +221,206 @@ This policy governs new API changes; existing demonstration history is preserved
 `npm run test:staff` runs backend integration tests and frontend URL/date/rendering tests. It creates its own tickets and an already-cancelled staff fixture, then soft-cancels test tickets/messages/history. It never alters the 20 original seed tickets or deletes records. The inactive fixture remains as a cancelled audit record.
 
 The suite covers both seeded customers, customer/anonymous denial on every staff endpoint, pagination/totals/stable tie ordering, combined filters, number/subject search, date boundaries, request validation, CSRF/Origin/actor spoofing, staff reply authors/order, transition history/reopening/invalid/concurrent changes, active-only assignment and cancelled-ticket denial. React tests render the actual staff Landing inbox/detail with real Jalali filter/footer pickers, persisted filters, pagination and loading/empty/error states. Picker text initializes during browser mounting, so calendar conversion and URL restoration are separately tested as well. Full browser clicking/keyboard interaction remains a manual review step; it is not claimed by server rendering tests.
+
+## Milestone 5A: HTTP production deployment
+
+**Target on this VM:** `http://192.168.113.113` (port 80). This is intentionally **HTTP without TLS**, as required by the employer. Passwords and session cookies can be observed by someone able to inspect the network. Use only the public demonstration accounts above; this is not an HTTPS-secure deployment and is unsuitable for real credentials or sensitive tickets. CSRF, Origin checks, signed HttpOnly/SameSite cookies, password hashing and authorization remain enabled, but do not provide transport encryption. No HSTS or upgrade-to-HTTPS header is sent on this HTTP origin.
+
+The required exception is explicit: `NODE_ENV=production`, `ALLOW_INSECURE_HTTP=true`, `APP_ORIGIN=http://192.168.113.113`. HTTPS remains the default production policy. There is no wildcard CORS configuration: frontend and `/api` share one origin. The API binds to localhost in code, and trusts only loopback proxies. nginx overwrites forwarded protocol/client-IP headers and preserves API paths, methods, bodies and cookies. `/api` and `/api/` never enter the React fallback; missing assets/private paths return 404.
+
+### Fresh Ubuntu 24.04 VM
+
+Do not repeat provisioning on this already-working VM. All sudo commands in this README are for the operator to run manually. No command changes SSH, firewall or VM network settings.
+
+1. Use your existing unprivileged SSH account. The checked-in unit expects `drbtest01`, `/home/drbtest01/tickets-app`, `/usr/bin/node` and PostgreSQL cluster `16/main`; edit those explicit paths in a copy of the unit for a different fresh host. Never recursively chown the project to www-data/root.
+2. Install system packages:
+
+```bash
+sudo apt update
+sudo apt install -y nginx postgresql postgresql-contrib git python3 curl ca-certificates xz-utils ripgrep build-essential
+```
+
+3. Install Node 24/npm 11 using an employer-approved method. For a fresh **x86_64** VM without Node, this pinned [official Node.js release](https://nodejs.org/en/download) is compatible with the tested runtime (use the matching architecture for ARM). These commands download only from the public official Node.js host, not another employer machine:
+
+```bash
+cd /tmp
+curl -fSLO https://nodejs.org/dist/v24.22.3/node-v24.22.3-linux-x64.tar.xz
+curl -fSLO https://nodejs.org/dist/v24.22.3/SHASUMS256.txt
+rg ' node-v24.22.3-linux-x64.tar.xz$' SHASUMS256.txt | sha256sum --check -
+sudo tar -xJf node-v24.22.3-linux-x64.tar.xz -C /opt
+sudo ln -s /opt/node-v24.22.3-linux-x64/bin/node /usr/bin/node
+sudo ln -s /opt/node-v24.22.3-linux-x64/bin/npm /usr/local/bin/npm
+node --version
+npm --version
+```
+
+Do not replace an existing Node installation with these symlink commands. Confirm Node 24, npm 11 and `command -v node` before continuing. The systemd unit and preflight script use the inspected `/usr/bin/node` path; adapt it if your approved installation differs. The official download page also links signed-checksum verification.
+
+4. Put this Git checkout at `/home/drbtest01/tickets-app` using your approved repository transfer/clone method. Create a database only on a fresh VM where it does not exist:
+
+```bash
+sudo -u postgres createuser --pwprompt tickets_user
+sudo -u postgres createdb --owner=tickets_user tickets_db
+cd /home/drbtest01/tickets-app
+npm ci
+python3 deploy/configure-env.py
+npm run db:migrate
+npm run db:seed
+```
+
+The Python helper prompts with typing hidden, percent-encodes the password and creates `server/.env` with mode 0600 and a generated signing secret. It refuses to overwrite an existing file. On this existing VM, preserve the working `server/.env` and database; do not recreate/reset/reseed them. Migration files/checksums remain the source of schema history.
+
+5. Confirm PostgreSQL is local-only and its cluster is set to automatic startup:
+
+```bash
+pg_lsclusters
+ss -lnt
+cat /etc/postgresql/16/main/start.conf
+systemctl is-enabled postgresql
+```
+
+Port 5432 must be on loopback, not `0.0.0.0` or a public interface. If that is not true, stop and request a reviewed configuration change rather than changing network/firewall settings implicitly.
+
+### Build and prepare (normal user)
+
+```bash
+cd /home/drbtest01/tickets-app
+npm run check
+npm run build
+npm run test:production
+npm run test:auth
+npm run test:tickets
+npm run test:staff
+npm run test:health
+node deploy/prepare.mjs http://192.168.113.113
+node deploy/preflight.mjs
+```
+
+Use this VM's actual IPv4 address from `ip -4 -brief address show scope global`. `prepare.mjs` rejects other machines' addresses and reads the existing local connection/signing settings without printing them. It creates ignored owner-only `deploy/.runtime/server.env` and the rendered nginx site. It leaves `server/.env` unchanged, preserving development on ports 3000/5173. Do not display or commit `.runtime` files.
+
+`preflight.mjs` runs as the normal user: syntax-checks nginx and the unit, temporarily runs production Express on 127.0.0.1:3001 and nginx on 127.0.0.1:8080, then tests the actual proxy/configuration with the production Host/Origin. It stops its own processes afterward. Ports 3001/8080 must be free; run this before installing/starting the production service. This rehearsal is **not** proof that port 80/systemd has been installed.
+
+### Install and start (manual sudo)
+
+Review `deploy/nginx.conf.template`, `deploy/nginx-proxy.conf` and `deploy/tickets-api.service` first. On this VM the default nginx welcome site can stay enabled: the new site matches the exact VM IP, avoiding a destructive default-site removal.
+
+```bash
+cd /home/drbtest01/tickets-app
+sudo install -d -m 0755 /etc/tickets-app /var/www/tickets-app
+sudo install -m 0600 deploy/.runtime/server.env /etc/tickets-app/server.env
+sudo install -m 0644 deploy/nginx-proxy.conf /etc/nginx/tickets-proxy.conf
+sudo install -m 0644 deploy/.runtime/tickets-app.conf /etc/nginx/sites-available/tickets-app
+sudo ln -s /etc/nginx/sites-available/tickets-app /etc/nginx/sites-enabled/tickets-app
+sudo cp -R client/dist/. /var/www/tickets-app/
+sudo install -m 0644 deploy/tickets-api.service /etc/systemd/system/tickets-api.service
+sudo nginx -t
+sudo systemctl daemon-reload
+sudo systemctl enable --now postgresql nginx tickets-api
+sudo systemctl reload nginx
+```
+
+Stop on any error. The `ln -s` command is first-install-only; do not overwrite an unexpected existing site. Only compiled static files are copied to the public directory, never the repository/server/.env. Old hashed asset files may remain on updates; retaining them avoids breaking already-open browser tabs. The root-owned 0600 environment file is read by systemd and injected into the unprivileged service. The service uses automatic restart, restrictive file permissions, read-only filesystem/home access and a private temporary directory; no project ownership change is needed.
+
+### Verify actual port 80 and a service restart
+
+```bash
+systemctl is-active tickets-api nginx postgresql@16-main ssh.socket
+systemctl is-enabled tickets-api nginx postgresql ssh.socket
+ss -lnt
+curl --fail http://192.168.113.113/api/health
+curl --fail http://192.168.113.113/api/health/db
+node deploy/smoke.mjs http://192.168.113.113 --prepare-restart
+sudo systemctl restart tickets-api
+node deploy/smoke.mjs http://192.168.113.113 --verify-restart
+```
+
+The smoke test uses only demo credentials, creates its own test ticket, verifies public/nested routes and missing API/private assets, login/session/logout/CSRF/Origin, customer/staff roles, cross-customer UUID denial and staff reply/status/assignment. It never prints cookies/passwords/tokens. The restart phase stores short-lived test sessions only in ignored mode-0600 state, then checks that sessions, the new ticket and all 20 original demo-ticket summaries survive restart unchanged. It soft-cancels its test ticket, logs out test accounts and scrubs the saved session state after verification. Run the two phases promptly (sessions expire after eight hours). Do not inspect/share the state JSON. If preparation fails, do not reset/reseed data; inspect service health and report only non-secret errors.
+
+In the browser, manually check both roles, a real Jalali filter, customer/staff detail and refresh on a nested URL. A curl/rendering test cannot confirm browser focus, calendar clicking or all browser cookie behavior. Use separate private sessions or log out when switching roles.
+
+### Startup, shutdown and updates
+
+```bash
+# Start/stop only the application service; leave PostgreSQL data and SSH alone.
+sudo systemctl start tickets-api
+sudo systemctl stop tickets-api
+sudo systemctl restart tickets-api
+systemctl status tickets-api --no-pager
+sudo journalctl -u tickets-api -n 50 --no-pager
+```
+
+Review logs locally before sharing; never print environment files or use commands that dump a service's complete environment. Stopping the API leaves nginx running (API requests return 502 until restarted).
+
+For an update, obtain reviewed source changes using your normal Git workflow; do not use destructive reset/clean commands. Then:
+
+```bash
+npm ci
+npm run check
+npm run build
+npm run test:production
+npm run test:auth
+npm run test:tickets
+npm run test:staff
+npm run test:health
+npm run db:migrate
+sudo cp -R client/dist/. /var/www/tickets-app/
+sudo systemctl restart tickets-api
+sudo nginx -t
+sudo systemctl reload nginx
+node deploy/smoke.mjs http://192.168.113.113
+```
+
+Do not run the demo seed during normal updates. Keep the signing secret stable across restarts/reboots. Reinstall the service/proxy files and daemon-reload only when those files change. If the VM IP changes, regenerate the deployment files for the new local address, reinstall the restricted environment/nginx site, restart the API and reload nginx. Do not probe the old address if it is no longer assigned to this VM.
+
+### Manual reboot checklist — never automatic
+
+SSH on this inspected VM is socket-activated: `ssh.socket` is enabled/active on **port 5150**. `ssh.service` can show disabled while this is correct. PostgreSQL 16/main has `start.conf=auto`; its parent postgresql service is enabled. No SSH settings were changed.
+
+Before considering reboot, all application checks above must pass. From your own workstation, open a second fresh SSH session and keep it available:
+
+```bash
+ssh -p 5150 drbtest01@192.168.113.113
+```
+
+Inside the VM, verify again:
+
+```bash
+systemctl is-active ssh.socket ssh tickets-api nginx postgresql@16-main
+systemctl is-enabled ssh.socket tickets-api nginx postgresql
+ss -lnt
+node deploy/smoke.mjs http://192.168.113.113 --prepare-restart
+```
+
+Only after confirming a new SSH login works and all boot units are enabled, **you** may run:
+
+```bash
+sudo reboot
+```
+
+Codex must not execute it. Reconnect from your workstation with the same SSH command. Then:
+
+```bash
+uptime -s
+ip -4 -brief address show scope global
+systemctl is-active ssh.socket ssh tickets-api nginx postgresql@16-main
+systemctl is-enabled ssh.socket tickets-api nginx postgresql
+ss -lnt
+curl --fail http://192.168.113.113/api/health
+curl --fail http://192.168.113.113/api/health/db
+cd /home/drbtest01/tickets-app
+node deploy/smoke.mjs http://192.168.113.113 --verify-restart
+```
+
+The API must listen only at 127.0.0.1:3001; PostgreSQL only on loopback:5432; nginx on port 80; SSH remains on 5150. Confirm the IP is still assigned locally before using that URL. Finally reload a nested browser route and confirm both roles work without starting any development server. A full reboot is pending manual execution; it has not been performed by Codex.
+
+### Troubleshooting and verification record
+
+- 502 from `/api`: inspect `systemctl status tickets-api`, the local service journal, `ss -lnt`, and PostgreSQL health. Confirm nginx upstream is 127.0.0.1:3001 and the compiled entrypoint exists. Never publish server source as a workaround.
+- Login succeeds but does not stay logged in on HTTP: confirm the generated production environment includes the explicit HTTP exception and exact origin, restart the service, and check only cookie **flags** in DevTools (never share cookie values).
+- 403 on writes: browser origin must exactly match APP_ORIGIN; client CSRF token/session must be current. Do not disable CSRF or Origin checks.
+- nginx welcome page: use the exact configured VM IP; verify the site symlink and `sudo nginx -t`, then reload nginx. Do not change DNS, SSH or firewall settings implicitly.
+- Nested route 404: verify `try_files ... /index.html`; `/api` must retain its dedicated proxy locations.
+- nginx cannot read static files: publish compiled dist under /var/www as shown. Do not loosen the private home directory or expose the repository.
+- Auth tests found a legitimate extra browser reply (37 messages vs 36 seed fixtures). The assertion now counts fixed seed-message/history IDs rather than deleting data or treating ordinary browser activity as a failure.
+- Verified so far: TypeScript/builds, production HTTP opt-in/cookie tests, existing auth/customer/staff/health suites, repeatable migration checks and normal-user nginx/unit syntax + production-mode proxy rehearsal. The original four accounts, twenty seed tickets and browser-added reply were preserved.
+- After the operator completed the manual installation: actual nginx port-80 static/nested-route/API checks passed, all required services were active/enabled, the API ran as drbtest01 on loopback:3001, and the root-owned environment was 0600. A manual systemctl restart changed the service PID; saved customer/staff sessions, the new test ticket and all 20 original ticket summaries survived unchanged. Test cleanup then soft-cancelled its ticket and logged out its sessions. Full VM reboot and browser interaction checks remain manual. The existing approximately 538 kB JS bundle warning is non-blocking. No voice-note work was started.

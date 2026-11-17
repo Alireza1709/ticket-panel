@@ -1,92 +1,10 @@
-# Implementation notes
+# NOTES — one-page handover
 
-## Milestones 1–4
-
-The existing npm workspaces, localhost-only Express/Vite listeners, API proxy, Tailwind v4 and shadcn-style Button are retained. No dependencies were added for Milestone 2. The user completed PostgreSQL provisioning (`tickets_user`, `tickets_db`) and both health checks passed before Milestone 2.
-
-## Schema decisions
-
-- SQL migrations are transactional and versioned with SHA-256 checksums and a PostgreSQL advisory lock. Runner works through tsx or compiled code; SQL files stay in `server/migrations`.
-- PostgreSQL 16 supplies `gen_random_uuid()` without an extension. Native enums constrain roles/statuses/priorities.
-- Customer and assignee composite foreign keys prevent assigning customer accounts as staff. Active-ticket indexes cover customer, inbox and assignee queries; message/history indexes cover chronological details.
-- All six tables have the required audit/cancellation columns. Four application tables require a creator and have automatic updated timestamps. Infrastructure migration/anonymous-session actors may be NULL. Deferred self-reference bootstraps the first staff creator without a fabricated system account.
-- Statement triggers block DELETE and TRUNCATE. No destructive database commands were run. Future ticket cancellation/status changes should be transactional with history insertion; there are no ticket mutation endpoints yet.
-- Seed uses fixed UUIDs, a transaction and an advisory lock. Repeated seed runs preserve existing rows, changed passwords and cancellations. Ticket number sequences can have gaps. Demo seed accounts/passwords are public test fixtures, not real credentials.
-
-## Authentication decisions
-
-- Argon2id hashes, including a dummy hash for missing-email verification, avoid plaintext password storage and reduce obvious account-enumeration timing differences.
-- A small PostgreSQL express-session Store uses the existing pg package. MemoryStore is avoided so restarting Express does not lose sessions. Only a signed opaque session ID reaches the browser.
-- Regeneration at login cancels the old session; logout cancels the row and clears its data/cookie. Expired sessions are ignored. Retained expired rows need a future soft-cancellation/retention task; there is no deletion job.
-- A random stable signing secret was appended to ignored `server/.env` without printing it or changing the database URL. `config:session` makes this reproducible and preserves valid existing secrets. Placeholder secrets are rejected. The file remains 0600.
-- Cookies are HttpOnly, SameSite=Lax, path `/`, eight-hour lifetime; Secure is enabled in production. Production requires an HTTPS application origin. Trusted proxies are restricted to loopback for the later local nginx setup.
-- Synchronizer CSRF tokens protect login and logout. Constant-time token checks and an Origin allowlist are used. CSRF is enforced even for login to prevent login-CSRF/session swapping. Future cookie-authenticated writes must reuse this protection.
-- Zod validates strict authentication bodies and normalizes emails. Safe user DTOs expose only id/name/email/role. Database/internal errors return generic Persian messages.
-- Current-user/role checks fetch the non-cancelled user from PostgreSQL each request. Frontend redirects are convenience; API role middleware is the enforcement boundary.
-- Login failure throttling is per IP and stored in memory (single-process interview application). A shared limiter would be needed for multiple API instances.
-
-## Frontend decisions
-
-- React Hook Form + Zod handle the Persian login form; TanStack Query manages user/CSRF/overview requests and mutations. Error/loading states and accessible input errors are included.
-- A small history-based route guard covers the three current routes without adding a routing dependency. Signed-out users go to login; authenticated users go to their role's landing page. Query caches are cleared when changing accounts.
-- Placeholder ticket sections explicitly say data integration comes later, avoiding an inaccurate “no tickets” message when seed tickets exist.
-- Jalali date formatting and Persian calendar/date picker remain available on protected pages.
-
-## Milestone 2 verification record
-
-Migrations and seed ran twice successfully with unchanged counts: 4 users, 20 tickets, 36 messages and 36 history entries. Final `npm run check`, `npm run build`, `npm run test:auth` and `npm run test:health` passed. Authentication checks cover schema audit fields/guards, both password outcomes, validation, anonymous/role access, CSRF/Origin rejection, session rotation/persistence, logout replay and throttling; frontend redirect tests cover both roles and signed-out access. Running `config:session` twice preserved the existing private environment byte-for-byte. The environment file is still ignored with mode 0600. Schema tests inspect deletion guards rather than issuing destructive statements. Browser automation is unavailable; no browser interaction test is claimed.
-
-The final Vite build emits a non-blocking warning for a 500.56 kB JavaScript chunk (155.83 kB gzipped). Calendar code splitting is a future optimization; the build succeeds.
-
-## Deferred work recorded after Milestone 2
-
-Ticket APIs/UI, transactional status changes, nginx, TLS, systemd boot startup, durable multi-process rate limiting, session-retention housekeeping, full browser/accessibility verification. Original `task.pdf` remains untouched; no PDF extraction utility was available during Milestone 1.
-
-## Milestone 3 decisions
-
-- Inspected existing migration, role middleware, session CSRF flow, React layout and tests before implementation. Preserved client/server structure, login and staff placeholder page. No new dependencies or staff inbox features.
-- Added migration 002 instead of editing the applied initial migration. Category is a constrained text column with four fixed values; old tickets safely default to `other`. No new tables are needed.
-- Customer router is mounted behind the existing `requireRole("customer")`. Every single-ticket read/write includes `id`, session `customer_id` and non-cancellation predicates. Foreign/missing/cancelled UUIDs share the same 404 response. Unknown input keys are rejected rather than silently trusting ownership fields.
-- Reused and exported the existing CSRF middleware for every new POST route. All application values use query parameters; static SQL projections are code constants, not user input.
-- Create uses one transaction for the ticket, initial message and initial history entry. Detail uses a repeatable-read, read-only transaction for a consistent metadata/thread/history snapshot. Messages/history are sorted by timestamp then UUID for deterministic ties.
-- Reply and cancel lock the owned active ticket with FOR UPDATE before modifying it, so concurrent cancellation cannot leave a new message after a cancelled parent. Reply inserts and ticket timestamp update commit together. Database timestamp triggers remain the source of updated_at.
-- Open cancellation statuses: new, in_progress, waiting_customer. Resolved/closed return 409. Cancellation preserves the existing status and children, using only soft cancellation on the parent. No new “cancelled” status is invented. Replies on any non-cancelled owned ticket are allowed and do not change status.
-- Inactive user names are not joined as active records; historical messages fall back to a Persian inactive-user label. The response never selects password hashes.
-- Customer components separate list, create, detail/thread/history, reply, confirmation dialog and shared request states. Native modal dialog provides keyboard focus containment/Escape behavior with existing Button styling. The safe dismiss label is always انصراف. Mutation errors remain visible; no automatic retry can duplicate a submission.
-- TanStack Query keys include user identity. Creation/replies/cancellation refresh affected caches. Cancellation removes cached detail and returns to the list with success feedback. A 401/403 prompts an auth refresh; actual authorization remains server-side.
-- Extended the small route guard for customer create/detail UUID paths. Auth redirects still replace history; customer navigation pushes history so normal back/forward works. Jalali timestamps use fa-IR Persian calendar and Asia/Tehran time.
-- Messages/subjects render as React text, never raw HTML. Rendering tests verify an injected script string is escaped.
-
-## Milestone 3 verification
-
-The additive migration applied and the initial customer integration suite passed before frontend wiring. Strict TypeScript, frontend/backend builds, existing authentication/seed/health tests and extended URL tests passed after wiring. Customer integration tests use real local PostgreSQL and newly created fixtures only; cleanup soft-cancels all fixture tickets/messages/history. No DELETE, TRUNCATE, DROP, password output or external-machine access was used.
-
-Final verification passed: `npm run check`, `npm run build`, `npm run test:tickets` (customer API + rendering tests), `npm run test:auth` (auth + routes), `npm run test:health`, and a repeated `npm run db:migrate`. The original seed account/ticket/message/history counts remain intact. UI-rendering checks cover Persian loading/empty/error/populated states, Jalali timestamps, HTML escaping and cancellation controls. The standalone TSX test harness needed an explicit React import; this was corrected and all rendering checks passed. Full browser click/keyboard tests remain unavailable because browser automation is not installed. The final Vite bundle is 517.49 kB (159.95 kB gzipped), producing a non-blocking size warning. Calendar/route code splitting remains a future optimization.
-
-## Scope after Milestone 3
-
-Customer ticket management is complete; defer staff inbox/search/pagination/assignment/status changes, attachment uploads, nginx/systemd deployment and full browser/accessibility testing. Previous authentication/session security limitations still apply (single-process login limiter and retained expired-session rows).
-
-## Milestone 4 decisions
-
-- Inspected current SQL migrations, customer/auth APIs, route guard, real-Landing date-picker regression and component/test conventions before editing. The existing schema supports every staff feature, so no migration, seed rerun, environment change or dependency addition was needed.
-- Added a separate staff router behind fresh server-side role checks, preserving customer endpoint ownership rules. The existing overview endpoints remain compatible, but the staff placeholder is replaced by the inbox. The layout no longer needs an overview-only request because actual ticket routes enforce role access.
-- Inbox filters are strict Zod-validated parameters; bounded positive pages/page sizes and 100-character literal search. A static parameterized WHERE clause is shared by count and rows. Both queries use one repeatable-read snapshot, with stable `(created_at DESC, id DESC)` ordering and all filters before LIMIT/OFFSET. Returned summaries omit emails, hashes, session data and unnecessary ticket bodies.
-- Staff detail uses a consistent read-only snapshot and the same safe DTO shape as customer detail, letting frontend message/history presentation be reused. Cancelled users are excluded from joins, with Persian historical-name fallbacks; cancelled messages/history/tickets are excluded from ordinary reads.
-- Replies/status/assignment lock the active parent ticket in transactions. Status and history commit together with the session actor. The documented graph permits customer-information waits and reopening resolved tickets; closed is terminal. Assignment validates/locks an active staff target with FOR SHARE, updates only the assignee, and leaves duplicate assignment as a no-op. No caller-supplied actor or ownership field is accepted.
-- Reused the existing CSRF/Origin middleware for all writes. Customer access to inbox/detail/members/status/assignment/replies is denied even with real ticket UUIDs. Raw user input is never inserted into SQL syntax.
-- Centralized the corrected date-picker export normalization in a small JalaliPicker component, shared by footer/from/to controls. DateObject's CommonJS wrapper is normalized too. Existing calendar/locale/RTL behavior is preserved; real rendering tests cover all picker-bearing layouts.
-- Date selection uses two inclusive Jalali day controls. Conversion finds the first instant of the corresponding Tehran calendar day using Intl/IANA data, avoiding browser timezone assumptions and handling historical midnight DST gaps. End dates map to the next day's exclusive boundary. URL state stores only explicit ISO timestamps; invalid/year-zero timestamps are rejected before SQL or calendar conversion.
-- The route snapshot now observes pathname plus search. Staff inbox/detail paths retain query parameters through redirects, page changes, refresh and return links. URL filters initialize React Hook Form; applying filters resets the page. Real picker inputs initialize after mounting, so SSR tests verify their presence and separately verify conversion/restoration.
-- Shared customer ReplyForm now has a defaulted audience parameter; customer behavior is unchanged. Thread/history presentation is reused. Mutations refresh staff inbox/detail and relevant existing ticket caches. Protected request failures trigger the existing account refresh behavior.
-- No customer cancellation, authentication/session or password behavior changed. No staff creation/deletion, unassignment, priority editing, deployment or voice-note feature was added.
-
-## Milestone 4 verification record
-
-Staff API and UI suites passed, followed by all existing auth, customer, health and routing tests, strict TypeScript checks and production builds. The security review added rejection of ISO year zero (unsupported by PostgreSQL) and finite timestamp checks; final `npm run check`, `npm run test:staff` and `npm run build` passed after this refinement. Tests use only newly created fixtures; original seed counts remain correct. All cleanup is soft cancellation, with no DELETE/TRUNCATE/DROP or database reset. No credentials/cookies/secrets were logged or committed.
-
-The integrated React tests render real staff inbox/detail layouts with real date pickers and cover Persian states and restored URL form values. Calendar tests pass with UTC, America/Los_Angeles and Asia/Tokyo host zones, including Persian New Year, leap Esfand and a 23-hour Tehran DST day. Full browser clicks/keyboard/accessibility review remains manual. The existing non-blocking Vite JavaScript bundle warning remains; the final Milestone 4 build measured 537.97 kB (164.77 kB gzipped).
-
-## Remaining after Milestone 4
-
-Deployment/systemd/nginx/TLS decisions, full browser/accessibility review, optional performance/code splitting and session-retention housekeeping remain. Staff inbox/status/assignment/replies and customer workflows are implemented. The application still uses a single-process in-memory login limiter and offset pagination; search is appropriate for this small interview dataset. No bonus voice-note or deployment work was started.
+- **Scope:** Milestones 1–4 implement Persian RTL customer/staff tickets with Jalali dates. Milestone 5A adds HTTP deployment artifacts and verification. Deployment targets this VM at `http://192.168.113.113`; no voice notes or reboot is automated.
+- **Architecture:** Existing client/server workspaces remain. Vite builds `client/dist`; TypeScript builds `server/dist/index.js`. nginx serves only compiled files copied to `/var/www/tickets-app`, with SPA fallback and separate `/api` proxy locations. API listens only on `127.0.0.1:3001`; development remains on 3000/5173.
+- **Security:** Production normally requires HTTPS. Required HTTP needs explicit `ALLOW_INSECURE_HTTP=true`; cookies stay signed, HttpOnly and SameSite=Lax, but cannot use Secure. HTTPS always keeps Secure cookies. HTTP has no TLS confidentiality; use public demo credentials only. CSRF/Origin/role/ownership checks remain enforced. nginx overwrites forwarded headers; no wildcard CORS, HSTS or HTTPS-upgrade directive is applied to HTTP.
+- **Secrets/service:** Existing owner-only `server/.env` remains unchanged. Preparation copies settings without displaying them into ignored `.runtime`; manual installation uses root-owned `/etc/tickets-app/server.env` (0600). systemd runs Node as drbtest01 with restart/boot enablement and read-only filesystem hardening. No recursive ownership changes, SSH/firewall edits, or unrestricted root execution are used.
+- **Database:** PostgreSQL 16/main remains loopback-only with automatic cluster startup. Versioned/checksummed transactional migrations, UUID/audit columns, hard-delete guards and all original demo tickets remain. Test cleanup uses soft cancellation. A real browser reply increased message count; seed assertions now count fixed fixture IDs, preserving that reply.
+- **Business rules:** Customers access only their own active tickets; open cancellation statuses are new/in_progress/waiting_customer. Staff filter/count before stable pagination, assign only active staff, and atomically record status/history under row locks. Closed is terminal; resolved can reopen. Replies do not automatically change status. URL filters use explicit UTC boundaries for whole Tehran Jalali days, including historical DST. Shared picker normalization prevents the prior CommonJS-wrapper rendering crash.
+- **Verification:** TypeScript/builds, production configuration/cookie tests, auth/customer/staff/health suites, migration repeatability and non-root production nginx/proxy/unit rehearsal pass. Smoke tests exercise only this VM, never other employer machines, and never print cookies or secrets. The operator installed the reviewed files with manual sudo commands. Actual port-80 checks and session/data persistence across a manual service restart passed; services are enabled and the API is unprivileged. Full reboot/browser interactions remain manual. The approximately 538 kB bundle warning is non-blocking.
+- **Reboot gate:** Current SSH connection is on 5150; ssh.socket is enabled/active, though ssh.service shows disabled. Confirm a second fresh SSH login, enabled services, healthy API/DB and saved smoke state before the operator runs sudo reboot. README contains exact reconnect and post-boot checks. Never reboot automatically.
