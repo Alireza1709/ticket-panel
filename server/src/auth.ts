@@ -61,7 +61,11 @@ export function requireRole(role: PublicUser["role"]) {
     next();
   };
 }
-function csrfProtection(req: Request, res: Response, next: NextFunction) {
+export function csrfProtection(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) {
   const supplied = req.get("X-CSRF-Token");
   const expected = req.session.csrfToken;
   const origin = req.get("Origin");

@@ -131,9 +131,12 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
         (SELECT count(*)::int FROM status_history WHERE ticket_id::text LIKE '20000000-0000-4000-8000-%' AND NOT is_cancelled) AS history`);
         assert.deepEqual(related.rows[0], { messages: 36, history: 36 });
         const migrations = await pool.query(
-          "SELECT count(*)::int AS count FROM schema_migrations WHERE NOT is_cancelled",
+          "SELECT version FROM schema_migrations WHERE NOT is_cancelled ORDER BY version",
         );
-        assert.equal(migrations.rows[0].count, 1);
+        assert.deepEqual(
+          migrations.rows.map((row) => row.version),
+          ["001_initial.sql", "002_ticket_category.sql"],
+        );
         const accounts = await pool.query(
           "SELECT email, password_hash FROM users WHERE id::text LIKE '10000000-0000-4000-8000-%' AND NOT is_cancelled ORDER BY email",
         );

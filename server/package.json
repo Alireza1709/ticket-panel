@@ -12,7 +12,8 @@
     "db:migrate": "tsx src/migrate.ts",
     "db:seed": "tsx src/seed.ts",
     "test:auth": "npm run build && node --test tests/auth.test.mjs",
-    "config:session": "node scripts/session-secret.mjs"
+    "config:session": "node scripts/session-secret.mjs",
+    "test:tickets": "npm run build && node --test tests/customer-tickets.test.mjs"
   },
   "dependencies": {
     "argon2": "^0.45.2",
