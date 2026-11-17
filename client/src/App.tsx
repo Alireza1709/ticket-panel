@@ -6,14 +6,11 @@ import {
   Headphones,
   LogIn,
   LogOut,
-  Inbox,
   ShieldCheck,
   LoaderCircle,
 } from "lucide-react";
 import { z } from "zod";
-import DatePickerExport from "react-multi-date-picker";
-import persian from "react-date-object/calendars/persian";
-import persianFa from "react-date-object/locales/persian_fa";
+import { JalaliPicker } from "@/components/ui/jalali-picker";
 import { Button } from "@/components/ui/button";
 import {
   api,
@@ -22,16 +19,11 @@ import {
   loginResponseSchema,
   meSchema,
   postOptions,
-  userSchema,
   type User,
 } from "@/lib/api";
 import { CustomerTickets } from "@/components/customer/customer-tickets";
+import { StaffTickets } from "@/components/staff/staff-tickets";
 import { homeFor, routeFor } from "@/lib/auth-routing";
-
-// CommonJS interop may wrap the React component in a second default export.
-const DatePicker =
-  (DatePickerExport as unknown as { default?: typeof DatePickerExport })
-    .default ?? DatePickerExport;
 
 const loginSchema = z.object({
   email: z
@@ -47,7 +39,7 @@ const loginSchema = z.object({
 });
 type LoginValues = z.infer<typeof loginSchema>;
 function navigate(path: string, replace = true) {
-  if (window.location.pathname !== path) {
+  if (window.location.pathname + window.location.search !== path) {
     window.history[replace ? "replaceState" : "pushState"](null, "", path);
     window.dispatchEvent(new PopStateEvent("popstate"));
   }
@@ -230,20 +222,6 @@ export function Landing({
     staleTime: Infinity,
     retry: false,
   });
-  const overview = useQuery({
-    queryKey: ["overview", user.id, user.role],
-    queryFn: () =>
-      api(
-        `/api/${user.role}/overview`,
-        z.object({ user: userSchema, message: z.string() }),
-      ),
-    retry: false,
-  });
-  useEffect(() => {
-    if (overview.error instanceof ApiError && overview.error.status === 401) {
-      onLogout();
-    }
-  }, [overview.error, onLogout]);
   const logout = useMutation({
     mutationFn: () =>
       api(
@@ -291,35 +269,11 @@ export function Landing({
             navigate={(destination) => navigate(destination, false)}
           />
         ) : (
-          <>
-            <h2 className="text-2xl font-semibold">
-              {user.role === "staff" ? "صندوق پشتیبانی" : "تیکت‌های من"}
-            </h2>
-            {overview.isPending ? (
-              <Loading />
-            ) : overview.isError ? (
-              <Failure
-                error={overview.error}
-                retry={() => {
-                  void overview.refetch();
-                }}
-              />
-            ) : (
-              <>
-                <p className="text-slate-600">{overview.data.message}</p>
-                <div className="rounded-xl border border-dashed border-border px-4 py-10 text-center">
-                  <Inbox size={36} className="mx-auto mb-3 text-slate-400" />
-                  <h3 className="font-medium">
-                    نمایش تیکت‌ها در مرحله بعد فعال می‌شود
-                  </h3>
-                  <p className="mt-2 text-sm text-slate-500">
-                    ورود و دسترسی حساب شما آماده است؛ فهرست تیکت‌ها هنوز به این
-                    صفحه متصل نشده است.
-                  </p>
-                </div>
-              </>
-            )}
-          </>
+          <StaffTickets
+            userId={user.id}
+            path={path}
+            navigate={(destination) => navigate(destination, false)}
+          />
         )}
         {logout.isError && (
           <p role="alert" className="text-red-700">
@@ -342,11 +296,8 @@ export function Landing({
           </span>
           <label className="flex items-center gap-2" htmlFor="sample-date">
             تقویم شمسی
-            <DatePicker
+            <JalaliPicker
               id="sample-date"
-              calendar={persian}
-              locale={persianFa}
-              calendarPosition="bottom-right"
               inputClass="w-32 rounded-md border border-border px-2 py-1"
               placeholder="انتخاب تاریخ"
             />
@@ -366,7 +317,10 @@ export function Landing({
 
 export function App() {
   const queryClient = useQueryClient();
-  const path = useSyncExternalStore(subscribe, () => window.location.pathname);
+  const path = useSyncExternalStore(
+    subscribe,
+    () => window.location.pathname + window.location.search,
+  );
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api("/api/auth/me", meSchema),

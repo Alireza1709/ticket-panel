@@ -4,10 +4,18 @@ export function homeFor(role: Role): string {
 }
 export function routeFor(role: Role | null, path: string): string {
   if (role === null) return "/login";
+  const pathname = path.split("?")[0];
+  if (
+    role === "staff" &&
+    /^\/staff\/(?:inbox|tickets\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(
+      pathname,
+    )
+  )
+    return path;
   if (
     role === "customer" &&
     /^\/customer\/tickets(?:\/new|\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$/i.test(
-      path,
+      pathname,
     )
   )
     return path;

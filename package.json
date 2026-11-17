@@ -16,6 +16,7 @@
     "db:seed": "npm run db:seed -w server",
     "test:auth": "npm run test:auth -w server && npm run test:routes -w client",
     "config:session": "npm run config:session -w server",
-    "test:tickets": "npm run test:tickets -w server && npm run test:customer -w client"
+    "test:tickets": "npm run test:tickets -w server && npm run test:customer -w client",
+    "test:staff": "npm run test:staff -w server && npm run test:staff -w client"
   }
 }
