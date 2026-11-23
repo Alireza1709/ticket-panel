@@ -74,3 +74,9 @@ Correction verification completed: TypeScript checks, production build and all e
 ## Project completion and professional redesign
 
 The follow-up brief requested a Git checkpoint push before editing, an audit of the existing React and Express modules, customer registration with staff provisioning controlled by operators, separate dashboards, real PostgreSQL-backed metrics and filters, Persian RTL components, and verification of the reported current-user 502. It required preserving the existing API contracts, ticket state machine and migration history, and pushing the final implementation to the same branch.
+
+## Final production audit and delivery
+
+The user requested a six-page PDF compliance audit, a verified Git backup before changes, completion of mandatory requirements, production deployment to the existing VM, live verification and a normal push to main. The work preserved the existing modular application and data. The final patch carries forward private demo password inputs and the Jalali picker selection behavior, with current deployment evidence in the handover files.
+
+The audit verified the existing checkpoint against GitHub, backed up local edits and untracked material privately, and used the existing PostgreSQL, systemd, and nginx setup. TypeScript, production builds, 54 reported tests and the production dependency audit passed. Checksummed migrations were current. The verified frontend was published, nginx configuration passed validation, and a port-80 smoke run proved session and ticket persistence across an API restart. Chromium ran against the deployed origin at five requested widths. The full VM reboot was outside the final run because independent reconnect and recovery were unavailable in the active session.

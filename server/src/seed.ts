@@ -2,35 +2,35 @@ import argon2 from "argon2";
 import { config } from "./config.js";
 import { pool } from "./db.js";
 
-// Public demonstration credentials only; never use these accounts in production.
+// Fixed identities keep demo seeding repeatable. Passwords are supplied privately.
 const accounts = [
   {
     id: "10000000-0000-4000-8000-000000000001",
     name: "سارا احمدی",
     email: "sara@example.test",
     role: "customer",
-    password: "DemoCustomer1!2026",
+    passwordVariable: "DEMO_SARA_PASSWORD",
   },
   {
     id: "10000000-0000-4000-8000-000000000002",
     name: "علی رضایی",
     email: "ali@example.test",
     role: "customer",
-    password: "DemoCustomer2!2026",
+    passwordVariable: "DEMO_ALI_PASSWORD",
   },
   {
     id: "10000000-0000-4000-8000-000000000003",
     name: "مریم کریمی",
     email: "maryam@example.test",
     role: "staff",
-    password: "DemoStaff1!2026",
+    passwordVariable: "DEMO_MARYAM_PASSWORD",
   },
   {
     id: "10000000-0000-4000-8000-000000000004",
     name: "رضا محمدی",
     email: "reza@example.test",
     role: "staff",
-    password: "DemoStaff2!2026",
+    passwordVariable: "DEMO_REZA_PASSWORD",
   },
 ] as const;
 const subjects = [
@@ -73,7 +73,10 @@ async function seed() {
     await client.query("SELECT pg_advisory_xact_lock(71002002)");
     const creator = accounts[2].id;
     for (const account of accounts) {
-      const hash = await argon2.hash(account.password, {
+      const password = process.env[account.passwordVariable];
+      if (!password || password.length < 16)
+        throw new Error(`Set ${account.passwordVariable} to a demo password of at least 16 characters`);
+      const hash = await argon2.hash(password, {
         type: argon2.argon2id,
       });
       await client.query(

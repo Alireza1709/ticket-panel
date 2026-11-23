@@ -88,9 +88,9 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
     "2026-03-22T08:00:00.000Z",
   ];
   try {
-    await login(staff, "maryam@example.test", "DemoStaff1!2026");
-    await login(a, "sara@example.test", "DemoCustomer1!2026");
-    await login(b, "ali@example.test", "DemoCustomer2!2026");
+    await login(staff, "maryam@example.test", process.env.DEMO_MARYAM_PASSWORD);
+    await login(a, "sara@example.test", process.env.DEMO_SARA_PASSWORD);
+    await login(b, "ali@example.test", process.env.DEMO_ALI_PASSWORD);
     for (let index = 0; index < 6; index++) {
       const created = await request(
         index % 2 ? a : b,

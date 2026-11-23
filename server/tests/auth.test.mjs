@@ -152,10 +152,10 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
           "SELECT email, password_hash FROM users WHERE id::text LIKE '10000000-0000-4000-8000-%' AND NOT is_cancelled ORDER BY email",
         );
         const demos = {
-          "sara@example.test": "DemoCustomer1!2026",
-          "ali@example.test": "DemoCustomer2!2026",
-          "maryam@example.test": "DemoStaff1!2026",
-          "reza@example.test": "DemoStaff2!2026",
+          "sara@example.test": process.env.DEMO_SARA_PASSWORD,
+          "ali@example.test": process.env.DEMO_ALI_PASSWORD,
+          "maryam@example.test": process.env.DEMO_MARYAM_PASSWORD,
+          "reza@example.test": process.env.DEMO_REZA_PASSWORD,
         };
         for (const account of accounts.rows) {
           assert.match(account.password_hash, /^\$argon2id\$/);
@@ -276,7 +276,7 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
         const before = customer.cookie;
         const result = await request(customer, "/api/auth/login", {
           email: " SARA@example.test ",
-          password: "DemoCustomer1!2026",
+          password: process.env.DEMO_SARA_PASSWORD,
         });
         assert.equal(result.response.status, 200);
         assert.equal(result.body.user.role, "customer");
@@ -329,7 +329,7 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
         await prepare(staff);
         const result = await request(staff, "/api/auth/login", {
           email: "maryam@example.test",
-          password: "DemoStaff1!2026",
+          password: process.env.DEMO_MARYAM_PASSWORD,
         });
         assert.equal(result.response.status, 200);
         assert.equal(result.body.redirectTo, "/staff/inbox");

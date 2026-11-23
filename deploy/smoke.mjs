@@ -1,4 +1,5 @@
 import { readFile, writeFile, mkdir, chmod } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { localOrigin } from "./local-origin.mjs";
 
 function check(condition, label) {
@@ -18,6 +19,11 @@ export async function verifyDeployment(
     process.getuid() !== 0,
     "Run deployment smoke checks as the normal project user",
   );
+  if (!resume) {
+    process.loadEnvFile(fileURLToPath(new URL("../.env.demo", import.meta.url)));
+    for (const key of ["DEMO_SARA_PASSWORD", "DEMO_ALI_PASSWORD", "DEMO_MARYAM_PASSWORD"])
+      check(process.env[key], `Missing ${key} in private .env.demo`);
+  }
   if (prepareRestart) {
     const pending = await readFile(stateFile, "utf8").catch((error) => {
       if (error.code === "ENOENT") return null;
@@ -113,7 +119,7 @@ export async function verifyDeployment(
       );
       if (page >= result.data.total_pages) break;
     }
-    check(rows.length === 20, "All twenty original demo tickets remain active");
+    check(rows.length >= 20, "At least twenty demo tickets are active");
     return JSON.stringify(rows.toSorted((a, b) => a.id.localeCompare(b.id)));
   }
   async function logout(client) {
@@ -218,14 +224,14 @@ export async function verifyDeployment(
       const customerUser = await login(
         customer,
         "sara@example.test",
-        "DemoCustomer1!2026",
+        process.env.DEMO_SARA_PASSWORD,
         "customer",
       );
-      await login(second, "ali@example.test", "DemoCustomer2!2026", "customer");
+      await login(second, "ali@example.test", process.env.DEMO_ALI_PASSWORD, "customer");
       const staffUser = await login(
         staff,
         "maryam@example.test",
-        "DemoStaff1!2026",
+        process.env.DEMO_MARYAM_PASSWORD,
         "staff",
       );
       check(

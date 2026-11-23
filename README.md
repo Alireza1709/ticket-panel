@@ -52,21 +52,31 @@ Edit `server/.env` locally. Set `DATABASE_URL` to the local connection URL; perc
 ```bash
 npm run config:session
 npm run db:migrate
+
+# Create the private .env.demo as documented below before seeding.
 npm run db:seed
 ```
 
 `config:session` generates a random signing secret directly in the ignored file, prints no secret, sets permissions to `0600`, and preserves an existing valid secret. Keep this secret stable across restarts; replacing it signs everyone out. `NODE_ENV=production` normally requires an HTTPS `APP_ORIGIN`, with Secure cookies. The employer-required HTTP demo uses an explicit `ALLOW_INSECURE_HTTP=true` exception in its separate restricted production environment file. HTTP cookies remain HttpOnly and SameSite=Lax but cannot be Secure. HTTPS origins keep Secure cookies even when that flag is true.
 
-## Demo logins — development only
+## Authorized demo logins
 
-These deliberately public demonstration credentials are not database credentials or production secrets. The seed stores Argon2id hashes, never plaintext passwords.
+Use these fixture accounts on the trial VM or a seeded development instance. The VM operator provides the passwords privately to authorized reviewers. Each fresh installation supplies its own passwords before running the seed.
 
-| Role | Email | Demo password |
+| Role | Email | Private setting |
 | --- | --- | --- |
-| Customer | `sara@example.test` | `DemoCustomer1!2026` |
-| Customer | `ali@example.test` | `DemoCustomer2!2026` |
-| Staff | `maryam@example.test` | `DemoStaff1!2026` |
-| Staff | `reza@example.test` | `DemoStaff2!2026` |
+| Customer | `sara@example.test` | `DEMO_SARA_PASSWORD` |
+| Customer | `ali@example.test` | `DEMO_ALI_PASSWORD` |
+| Staff | `maryam@example.test` | `DEMO_MARYAM_PASSWORD` |
+| Staff | `reza@example.test` | `DEMO_REZA_PASSWORD` |
+
+Before the first seed, generate the ignored `.env.demo` in the repository root. This command preserves an existing file and prints no passwords.
+
+```bash
+(umask 077; set -C; for key in DEMO_SARA_PASSWORD DEMO_ALI_PASSWORD DEMO_MARYAM_PASSWORD DEMO_REZA_PASSWORD; do printf '%s=%s\n' "$key" "$(openssl rand -hex 24)"; done > .env.demo)
+```
+
+Keep this file mode 0600 and share only the appropriate credentials via a private channel. Seed reruns preserve existing passwords. Use the credentials for the target instance when running the integration or deployment smoke checks. On the trial VM, authorized operators can obtain them from the existing private `.env.demo` file. Earlier public demonstration defaults are retired.
 
 Customers land at `/customer/tickets` and can register at `/register`. The customer panel provides an overview, ticket list, ticket creation, conversations and status history, and a read-only account profile. Staff land at `/staff/inbox` and have their own overview, inbox and profile. Staff can filter by assignee, view customer contact details, reply, assign active staff and progress tickets through the status policy below.
 
@@ -242,7 +252,7 @@ The suite covers both seeded customers, customer/anonymous denial on every staff
 
 ## Milestone 5A: HTTP production deployment
 
-**Target on this VM:** `http://192.168.113.113` (port 80). This is intentionally **HTTP without TLS**, as required by the employer. Passwords and session cookies can be observed by someone able to inspect the network. Use only the public demonstration accounts above; this is not an HTTPS-secure deployment and is unsuitable for real credentials or sensitive tickets. CSRF, Origin checks, signed HttpOnly/SameSite cookies, password hashing and authorization remain enabled, but do not provide transport encryption. No HSTS or upgrade-to-HTTPS header is sent on this HTTP origin.
+**Target on this VM:** `http://192.168.113.113` (port 80). This is intentionally **HTTP without TLS**, as required by the employer. Passwords and session cookies can be observed by someone able to inspect the network. Use only the authorized demonstration accounts above; this is not an HTTPS-secure deployment and is unsuitable for real credentials or sensitive tickets. CSRF, Origin checks, signed HttpOnly/SameSite cookies, password hashing and authorization remain enabled, but do not provide transport encryption. No HSTS or upgrade-to-HTTPS header is sent on this HTTP origin.
 
 The required exception is explicit: `NODE_ENV=production`, `ALLOW_INSECURE_HTTP=true`, `APP_ORIGIN=http://192.168.113.113`. HTTPS remains the default production policy. There is no wildcard CORS configuration: frontend and `/api` share one origin. The API binds to localhost in code, and trusts only loopback proxies. nginx overwrites forwarded protocol/client-IP headers and preserves API paths, methods, bodies and cookies. `/api` and `/api/` never enter the React fallback; missing assets/private paths return 404.
 
@@ -453,3 +463,9 @@ The API must listen only at 127.0.0.1:3001; PostgreSQL only on loopback:5432; ng
 The current-user endpoint is `GET /api/auth/me`. A signed-out request returns HTTP 200 with `{"user":null}`. Development uses Vite on 5173 forwarding to Express on 3000. Nginx uses the configured virtual host and forwards to the systemd API on 3001. A request to Nginx's default host can return 404 even when the ticket virtual host works.
 
 To diagnose a 502, compare a direct request to the appropriate Express port against the same request through the browser's origin. Check the active service journal and nginx upstream error log for the occurrence, then verify the configured virtual host and prefix. A browser session cookie is needed to see an authenticated user, while an anonymous 200 verifies routing independently of cookie state.
+
+### Final deployment verification (2026-11-23)
+
+The verified build was published to `/var/www/tickets-app` and the API was restarted from `/home/drbtest01/tickets-app/server`. Nginx configuration validation passed. The production migration runner verified existing checksums and had no pending migrations. PostgreSQL 16, nginx and `tickets-api` were active and boot-enabled. UFW denied unsolicited inbound connections and allowed 80/tcp and 5150/tcp on IPv4 and IPv6. API and PostgreSQL listeners were loopback-only.
+
+TypeScript, production builds, all five test scripts (54 reported checks, including parent tests) and the production dependency audit passed. Port-80 smoke checks covered auth, authorization, ticket workflows, and session and data persistence across an observed API PID change. Chromium checked deployed workflows and horizontal overflow at 360, 390, 768, 1024 and 1440 pixels. The final verification exercised an API service restart. Full VM reboot recovery and a fresh Ubuntu rebuild were outside this run.

@@ -64,9 +64,9 @@ test("customer ticket ownership, validation, threads and soft cancellation", asy
   }
   let ticket;
   try {
-    await login(a, "sara@example.test", "DemoCustomer1!2026");
-    await login(b, "ali@example.test", "DemoCustomer2!2026");
-    await login(staff, "maryam@example.test", "DemoStaff1!2026");
+    await login(a, "sara@example.test", process.env.DEMO_SARA_PASSWORD);
+    await login(b, "ali@example.test", process.env.DEMO_ALI_PASSWORD);
+    await login(staff, "maryam@example.test", process.env.DEMO_MARYAM_PASSWORD);
     await t.test(
       "anonymous and staff access to customer endpoints is denied",
       async () => {
