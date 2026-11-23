@@ -1,15 +1,16 @@
+import { PriorityBadge, StatusBadge } from "@/components/shared/ticket-badges";
+import { Skeleton } from "@/components/feedback/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Inbox } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Failure, Pending, useAuthFailure } from "@/components/customer/shared";
-import { api } from "@/lib/api";
-import { jalali, priorities, statuses } from "@/lib/tickets";
+import { Failure, useAuthFailure } from "@/components/shared/ticket-form";
+import { staffApi } from "@/lib/ticket-api";
+import { jalali } from "@/lib/tickets";
 import {
   inboxSearch,
   parseInboxSearch,
   type InboxFilters,
 } from "@/lib/staff-inbox";
-import { inboxResponseSchema } from "@/lib/staff-tickets";
 import { InboxFilterForm } from "./inbox-filters";
 
 function Results({
@@ -24,7 +25,7 @@ function Results({
   const search = inboxSearch(filters);
   const query = useQuery({
     queryKey: ["staff-inbox", userId, search],
-    queryFn: () => api(`/api/staff/tickets?${search}`, inboxResponseSchema),
+    queryFn: () => staffApi.list(search),
     retry: false,
   });
   useAuthFailure(query.error);
@@ -38,7 +39,7 @@ function Results({
         clear={() => navigate("/staff/inbox")}
       />
       {query.isPending ? (
-        <Pending />
+        <Skeleton kind="inbox" />
       ) : query.isError ? (
         <Failure
           error={query.error}
@@ -52,7 +53,7 @@ function Results({
             {query.data.total.toLocaleString("fa-IR")} تیکت یافت شد
           </p>
           {query.data.tickets.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border p-8 text-center">
+            <div className="panel border-dashed p-8 text-center">
               <Inbox size={32} className="mx-auto mb-3 text-slate-400" />
               <p>
                 {query.data.total === 0
@@ -70,8 +71,8 @@ function Results({
               )}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-sm">
+            <div className="panel table-scroll" tabIndex={0} role="region" aria-label="جدول تیکت‌ها">
+              <table className="ticket-table w-full text-start text-sm">
                 <caption className="sr-only">صندوق تیکت‌های پشتیبانی</caption>
                 <thead>
                   <tr>
@@ -98,7 +99,7 @@ function Results({
                   {query.data.tickets.map((ticket) => {
                     const href = `/staff/tickets/${ticket.id}?${search}`;
                     return (
-                      <tr key={ticket.id} className="border-b border-slate-100">
+                      <tr key={ticket.id} className="ticket-table-row">
                         <td className="p-3">
                           <a
                             href={href}
@@ -126,10 +127,10 @@ function Results({
                           {ticket.customer_name}
                         </td>
                         <td className="whitespace-nowrap p-3">
-                          {statuses[ticket.status]}
+                          <StatusBadge status={ticket.status} />
                         </td>
                         <td className="whitespace-nowrap p-3">
-                          {priorities[ticket.priority]}
+                          <PriorityBadge priority={ticket.priority} />
                         </td>
                         <td className="whitespace-nowrap p-3">
                           {ticket.assigned_to
@@ -150,7 +151,7 @@ function Results({
           )}
           <nav
             aria-label="صفحه‌بندی تیکت‌ها"
-            className="flex flex-wrap items-center justify-between gap-3"
+            className="panel flex flex-wrap items-center justify-between gap-3 p-3"
           >
             <Button
               variant="outline"
@@ -188,7 +189,10 @@ export function StaffInbox({
   const parsed = parseInboxSearch(search);
   return (
     <div className="space-y-5">
-      <h2 className="text-2xl font-bold">صندوق پشتیبانی</h2>
+      <header className="page-heading">
+        <h2 className="page-title">صندوق پشتیبانی</h2>
+        <p className="text-sm text-slate-600">پیگیری درخواست‌های مشتریان و ارجاع به کارشناسان</p>
+      </header>
       {parsed.success ? (
         <Results
           key={search}

@@ -1,3 +1,5 @@
+import { useMutationSubmit } from "@/lib/mutation-submit";
+import { Skeleton } from "@/components/feedback/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,16 +8,14 @@ import { Button } from "@/components/ui/button";
 import {
   CsrfState,
   Failure,
-  Pending,
   inputClass,
   useAuthFailure,
-  useCustomerPost as useTicketPost,
-} from "@/components/customer/shared";
-import { api } from "@/lib/api";
+  useTicketPost,
+} from "@/components/shared/ticket-form";
+import { staffApi } from "@/lib/ticket-api";
 import {
   statuses,
   statusSchema,
-  successSchema,
   type Detail,
 } from "@/lib/tickets";
 import { allowedTransitions, membersSchema } from "@/lib/staff-tickets";
@@ -37,12 +37,13 @@ function StatusForm({
   });
   const mutation = useMutation({
     mutationFn: (body: z.infer<typeof changeSchema>) =>
-      state.post(`/api/staff/tickets/${ticket.id}/status`, body, successSchema),
+      state.post((token) => staffApi.changeStatus(ticket.id, body.status, token)),
     onSuccess: (result) => onChanged(result.message),
     onError: () => {
       void client.invalidateQueries({ queryKey: ["staff-ticket"] });
     },
   });
+  const submit = useMutationSubmit(handleSubmit, state.ready);
   if (options.length === 0)
     return (
       <p className="rounded-lg bg-slate-50 p-4 text-sm">
@@ -52,7 +53,7 @@ function StatusForm({
   return (
     <form
       noValidate
-      onSubmit={handleSubmit((values) => mutation.mutate(values))}
+      onSubmit={submit((values) => mutation.mutateAsync(values))}
       className="space-y-3"
     >
       <label htmlFor="next-status" className="block font-semibold">
@@ -73,6 +74,7 @@ function StatusForm({
       <CsrfState state={state} />
       {mutation.isError && <Failure error={mutation.error} />}
       <Button type="submit" disabled={!state.ready || mutation.isPending}>
+        {mutation.isPending && <span className="button-skeleton" aria-hidden="true" />}
         {mutation.isPending ? "در حال ذخیره…" : "ثبت وضعیت"}
       </Button>
     </form>
@@ -105,17 +107,14 @@ function AssignmentForm({
   });
   const mutation = useMutation({
     mutationFn: (values: z.infer<typeof assignSchema>) =>
-      state.post(
-        `/api/staff/tickets/${ticket.id}/assignment`,
-        values,
-        successSchema,
-      ),
+      state.post((token) => staffApi.assign(ticket.id, values.assigned_to, token)),
     onSuccess: (result) => onChanged(result.message),
   });
+  const submit = useMutationSubmit(handleSubmit, state.ready);
   return (
     <form
       noValidate
-      onSubmit={handleSubmit((values) => mutation.mutate(values))}
+      onSubmit={submit((values) => mutation.mutateAsync(values))}
       className="space-y-3"
     >
       <label htmlFor="assigned-staff" className="block font-semibold">
@@ -142,6 +141,7 @@ function AssignmentForm({
       <CsrfState state={state} />
       {mutation.isError && <Failure error={mutation.error} />}
       <Button type="submit" disabled={!state.ready || mutation.isPending}>
+        {mutation.isPending && <span className="button-skeleton" aria-hidden="true" />}
         {mutation.isPending ? "در حال واگذاری…" : "ثبت کارشناس"}
       </Button>
     </form>
@@ -156,18 +156,18 @@ export function TicketControls({
 }) {
   const query = useQuery({
     queryKey: ["staff-members"],
-    queryFn: () => api("/api/staff/members", membersSchema),
+    queryFn: staffApi.members,
     retry: false,
   });
   useAuthFailure(query.error);
   return (
     <section
       aria-label="مدیریت تیکت"
-      className="grid gap-6 rounded-xl border border-border p-4 sm:grid-cols-2"
+      className="panel grid gap-6 p-4 sm:grid-cols-2 sm:p-5"
     >
       <StatusForm key={ticket.status} ticket={ticket} onChanged={onChanged} />
       {query.isPending ? (
-        <Pending />
+        <Skeleton kind="form" />
       ) : query.isError ? (
         <Failure
           error={query.error}

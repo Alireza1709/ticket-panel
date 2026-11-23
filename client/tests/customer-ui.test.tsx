@@ -8,7 +8,7 @@ import { TicketDetail } from "../src/components/customer/ticket-detail";
 import { CreateTicket } from "../src/components/customer/create-ticket";
 import { ApiError } from "../src/lib/api";
 import { createTicketSchema, type Detail } from "../src/lib/tickets";
-import { Landing } from "../src/App";
+import { Landing } from "../src/components/layout/landing";
 
 const userId = "10000000-0000-4000-8000-000000000001";
 const id = "20000000-0000-4000-8000-000000000001";

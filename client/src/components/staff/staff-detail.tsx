@@ -1,21 +1,13 @@
-import { useState } from "react";
+import { MessageThread, StatusHistory } from "@/components/shared/ticket-discussion";
+import { TicketSummary } from "@/components/shared/ticket-summary";
+import { Skeleton } from "@/components/feedback/skeleton";
+import { useToast } from "@/components/feedback/toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  MessageThread,
-  StatusHistory,
-} from "@/components/customer/ticket-detail";
-import { ReplyForm } from "@/components/customer/reply-form";
-import { Failure, Pending, useAuthFailure } from "@/components/customer/shared";
-import { api } from "@/lib/api";
-import {
-  detailSchema,
-  categories,
-  priorities,
-  statuses,
-  jalali,
-} from "@/lib/tickets";
+import { ReplyForm } from "@/components/shared/reply-form";
+import { Failure, useAuthFailure } from "@/components/shared/ticket-form";
+import { staffApi } from "@/lib/ticket-api";
 import { TicketControls } from "./ticket-controls";
 
 export function StaffDetail({
@@ -29,16 +21,16 @@ export function StaffDetail({
   search: string;
   navigate: (path: string) => void;
 }) {
-  const [notice, setNotice] = useState("");
+  const notify = useToast();
   const client = useQueryClient();
   const query = useQuery({
     queryKey: ["staff-ticket", userId, id],
-    queryFn: () => api(`/api/staff/tickets/${id}`, detailSchema),
+    queryFn: () => staffApi.detail(id),
     retry: false,
   });
   useAuthFailure(query.error);
   async function refresh(message: string) {
-    setNotice(message);
+    notify(message);
     await Promise.all([
       client.invalidateQueries({ queryKey: ["staff-ticket", userId, id] }),
       client.invalidateQueries({ queryKey: ["staff-inbox"] }),
@@ -56,7 +48,7 @@ export function StaffDetail({
     return (
       <>
         {back}
-        <Pending />
+        <Skeleton kind="detail" />
       </>
     );
   if (query.isError)
@@ -72,46 +64,21 @@ export function StaffDetail({
       </div>
     );
   const { ticket, messages, history } = query.data;
-  const fields = [
-    ["شماره تیکت", ticket.ticket_number],
-    ["مشتری", ticket.customer_name],
-    [
-      "کارشناس",
-      ticket.assigned_to
-        ? (ticket.assignee_name ?? "کارشناس غیرفعال")
-        : "تعیین نشده",
-    ],
-    ["دسته‌بندی", categories[ticket.category]],
-    ["وضعیت", statuses[ticket.status]],
-    ["اولویت", priorities[ticket.priority]],
-    ["تاریخ ثبت", jalali(ticket.created_at)],
-    ["آخرین به‌روزرسانی", jalali(ticket.updated_at)],
-  ];
   return (
     <div className="space-y-6">
       {back}
-      <h2 className="break-words text-2xl font-bold leading-10">
+      <h2 className="page-title wrap-anywhere">
         {ticket.subject}
       </h2>
-      {notice && (
-        <p role="status" className="rounded-lg bg-teal-50 p-3 text-teal-900">
-          {notice}
-        </p>
-      )}
-      <dl className="grid gap-4 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
-        {fields.map(([label, value]) => (
-          <div key={label}>
-            <dt className="mb-2 text-slate-500">{label}</dt>
-            <dd className="break-words font-medium">
-              <bdi>{value}</bdi>
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <TicketSummary ticket={ticket} />
       <TicketControls ticket={ticket} onChanged={refresh} />
-      <MessageThread messages={messages} />
-      <ReplyForm ticketId={id} userId={userId} audience="staff" />
-      <StatusHistory history={history} />
+      <div className="detail-grid">
+        <div className="min-w-0 space-y-5">
+          <MessageThread messages={messages} />
+          <ReplyForm ticketId={id} userId={userId} audience="staff" />
+        </div>
+        <StatusHistory history={history} />
+      </div>
     </div>
   );
 }

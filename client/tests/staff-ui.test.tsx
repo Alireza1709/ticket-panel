@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Landing } from "../src/App";
+import { Landing } from "../src/components/layout/landing";
 import {
   CalendarDate,
   dayBoundary,

@@ -160,6 +160,16 @@ test("customer ticket ownership, validation, threads and soft cancellation", asy
     await t.test(
       "another customer cannot read, reply or cancel using a modified ticket UUID",
       async () => {
+        const snapshot = async () =>
+          (
+            await pool.query(
+              `SELECT t.is_cancelled, t.updated_at,
+                (SELECT count(*)::int FROM ticket_messages WHERE ticket_id = t.id) AS messages
+                FROM tickets t WHERE t.id = $1`,
+              [ticket.id],
+            )
+          ).rows[0];
+        const before = await snapshot();
         for (const [suffix, body] of [
           ["", undefined],
           ["/replies", { body: "پاسخ غیرمجاز" }],
@@ -183,6 +193,7 @@ test("customer ticket ownership, validation, threads and soft cancellation", asy
           (await request(a, `${root}/${ticket.id}`)).data.messages.length,
           1,
         );
+        assert.deepEqual(await snapshot(), before);
       },
     );
     await t.test(

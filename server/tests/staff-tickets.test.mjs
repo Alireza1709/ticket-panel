@@ -5,6 +5,7 @@ import test from "node:test";
 const { app } = await import("../dist/app.js");
 const { pool } = await import("../dist/db.js");
 const { config } = await import("../dist/config.js");
+const { updateTicketStatus } = await import("../dist/models/staff-ticket.model.js");
 
 test("staff inbox, transitions, assignment and access restrictions", async (t) => {
   assert.notEqual(config.NODE_ENV, "production");
@@ -58,6 +59,17 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
       root + "?" + new URLSearchParams({ q: marker, ...filters }),
     );
   }
+  async function persistedTicket(id) {
+    const { rows } = await pool.query(
+      `SELECT to_jsonb(t) AS ticket,
+        (SELECT count(*)::int FROM ticket_messages WHERE ticket_id = t.id) AS messages,
+        (SELECT count(*)::int FROM status_history WHERE ticket_id = t.id) AS history
+        FROM tickets t WHERE t.id = $1`,
+      [id],
+    );
+    assert.equal(rows.length, 1);
+    return rows[0];
+  }
   const statuses = [
     "new",
     "in_progress",
@@ -105,6 +117,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
     await t.test(
       "all staff APIs reject anonymous users and customers including direct mutation requests",
       async () => {
+        const before = await persistedTicket(ids[0]);
         for (const client of [{ cookie: "" }, a, b])
           for (const [path, body] of [
             [root, undefined],
@@ -118,6 +131,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
               (await request(client, path, body)).status,
               client === a || client === b ? 403 : 401,
             );
+        assert.deepEqual(await persistedTicket(ids[0]), before);
       },
     );
     await t.test(
@@ -235,6 +249,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
     await t.test(
       "mutations require CSRF and matching Origin and reject forged actors",
       async () => {
+        const before = await persistedTicket(ids[0]);
         for (const [suffix, body] of [
           ["replies", { body: "پاسخ" }],
           ["status", { status: "in_progress" }],
@@ -266,6 +281,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
             400,
           );
         }
+        assert.deepEqual(await persistedTicket(ids[0]), before);
       },
     );
     await t.test(
@@ -305,14 +321,29 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
       },
     );
     await t.test(
+      "history insert failure rolls back the status update and its timestamp",
+      async () => {
+        const before = await persistedTicket(ids[0]);
+        assert.equal(before.ticket.status, "new");
+        // An absent actor makes PostgreSQL reject the history insert after the update.
+        await assert.rejects(updateTicketStatus(ids[0], randomUUID(), "in_progress"), {
+          code: "23503",
+          table: "status_history",
+        });
+        assert.deepEqual(await persistedTicket(ids[0]), before);
+      },
+    );
+    await t.test(
       "status progression and reopening record authenticated actor; invalid and duplicate transitions are atomic",
       async () => {
+        const initial = await persistedTicket(ids[0]);
         for (const status of ["new", "waiting_customer", "resolved", "closed"])
           assert.equal(
             (await request(staff, `${root}/${ids[0]}/status`, { status }))
               .status,
             409,
           );
+        assert.deepEqual(await persistedTicket(ids[0]), initial);
         let previous = "new";
         for (const status of [
           "in_progress",
@@ -359,11 +390,15 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
           ).status,
           400,
         );
+        const concurrentBefore = await persistedTicket(ids[5]);
         const results = await Promise.all([
           request(staff, `${root}/${ids[5]}/status`, { status: "in_progress" }),
           request(staff, `${root}/${ids[5]}/status`, { status: "in_progress" }),
         ]);
         assert.deepEqual(results.map((row) => row.status).sort(), [200, 409]);
+        const concurrentAfter = await persistedTicket(ids[5]);
+        assert.equal(concurrentAfter.ticket.status, "in_progress");
+        assert.equal(concurrentAfter.history, concurrentBefore.history + 1);
       },
     );
     await t.test(
@@ -382,6 +417,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
           ),
         );
         const before = (await request(staff, `${root}/${ids[2]}`)).data.ticket;
+        const persistedBefore = await persistedTicket(ids[2]);
         for (const assigned_to of [
           "not-a-uuid",
           "10000000-0000-4000-8000-000000000001",
@@ -396,6 +432,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
             ).status,
             400,
           );
+        assert.deepEqual(await persistedTicket(ids[2]), persistedBefore);
         assert.equal(
           (
             await request(staff, `${root}/${ids[2]}/assignment`, {
@@ -431,6 +468,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
           (await inbox()).data.tickets.some((row) => row.id === ids[5]),
           false,
         );
+        const before = await persistedTicket(ids[5]);
         for (const [suffix, body] of [
           ["", undefined],
           ["/replies", { body: "پاسخ" }],
@@ -441,6 +479,7 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
             (await request(staff, `${root}/${ids[5]}${suffix}`, body)).status,
             404,
           );
+        assert.deepEqual(await persistedTicket(ids[5]), before);
       },
     );
   } finally {

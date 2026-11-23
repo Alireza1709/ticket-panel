@@ -1,3 +1,5 @@
+import { customerApi } from "@/lib/ticket-api";
+import { useMutationSubmit } from "@/lib/mutation-submit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,10 +8,9 @@ import {
   categories,
   priorities,
   createTicketSchema,
-  createdSchema,
   type CreateTicketValues,
 } from "@/lib/tickets";
-import { CsrfState, Failure, inputClass, useCustomerPost } from "./shared";
+import { CsrfState, Failure, inputClass, useTicketPost } from "@/components/shared/ticket-form";
 
 export function CreateTicket({
   navigate,
@@ -19,7 +20,7 @@ export function CreateTicket({
   notify: (message: string) => void;
 }) {
   const client = useQueryClient();
-  const state = useCustomerPost();
+  const state = useTicketPost();
   const {
     register,
     handleSubmit,
@@ -35,23 +36,24 @@ export function CreateTicket({
   });
   const create = useMutation({
     mutationFn: (values: CreateTicketValues) =>
-      state.post("/api/customer/tickets", values, createdSchema),
+      state.post((token) => customerApi.create(values, token)),
     onSuccess: async (result) => {
       await client.invalidateQueries({ queryKey: ["tickets"] });
       notify(`${result.message}؛ شماره پیگیری: ${result.ticket.ticket_number}`);
       navigate(`/customer/tickets/${result.ticket.id}`);
     },
   });
+  const submit = useMutationSubmit(handleSubmit, state.ready);
   return (
-    <div className="space-y-5">
-      <h2 className="text-2xl font-bold">ثبت تیکت جدید</h2>
+    <div className="max-w-3xl space-y-5">
+      <h2 className="page-title">ثبت تیکت جدید</h2>
       <p className="text-sm text-slate-500">
         موضوع و توضیحات درخواست خود را بنویسید تا بهتر راهنمایی شوید.
       </p>
       <form
         noValidate
-        onSubmit={handleSubmit((values) => create.mutate(values))}
-        className="space-y-5"
+        onSubmit={submit((values) => create.mutateAsync(values))}
+        className="panel space-y-5 p-5 sm:p-7"
       >
         <fieldset disabled={create.isPending} className="space-y-5">
           <div>
@@ -160,6 +162,7 @@ export function CreateTicket({
         {create.isError && <Failure error={create.error} />}
         <div className="flex gap-3">
           <Button type="submit" disabled={!state.ready || create.isPending}>
+            {create.isPending && <span className="button-skeleton" aria-hidden="true" />}
             {create.isPending ? "در حال ثبت…" : "ثبت تیکت"}
           </Button>
           <Button

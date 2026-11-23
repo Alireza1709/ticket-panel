@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { successSchema } from "@/lib/tickets";
-import { CsrfState, Failure, useCustomerPost } from "./shared";
+import { customerApi } from "@/lib/ticket-api";
+import { CsrfState, Failure, useTicketPost } from "@/components/shared/ticket-form";
 
 export function CancelTicketDialog({
   ticketId,
@@ -15,11 +15,11 @@ export function CancelTicketDialog({
 }) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
-  const state = useCustomerPost();
+  const state = useTicketPost();
   const client = useQueryClient();
   const cancel = useMutation({
     mutationFn: () =>
-      state.post(`/api/customer/tickets/${ticketId}/cancel`, {}, successSchema),
+      state.post((token) => customerApi.cancel(ticketId, token)),
     onSuccess: (result) => {
       setOpen(false);
       client.removeQueries({ queryKey: ["ticket", userId, ticketId] });
@@ -50,7 +50,7 @@ export function CancelTicketDialog({
         dir="rtl"
         aria-labelledby="cancel-title"
         aria-describedby="cancel-description"
-        className="fixed inset-0 m-auto w-[calc(100%_-_2rem)] max-w-md rounded-2xl border border-border bg-white p-6 shadow-xl backdrop:bg-slate-900/50"
+        className="ticket-dialog fixed inset-0 m-auto w-[calc(100%_-_2rem)] max-w-md rounded-2xl border border-border bg-white p-6 shadow-xl backdrop:bg-slate-900/50"
         onCancel={(event) => {
           event.preventDefault();
           if (!cancel.isPending) setOpen(false);
@@ -76,7 +76,7 @@ export function CancelTicketDialog({
               انصراف
             </Button>
             <Button
-              className="bg-red-700 text-white"
+              className="bg-red-700 text-white hover:bg-red-800"
               disabled={!state.ready || cancel.isPending}
               onClick={() => cancel.mutate()}
             >

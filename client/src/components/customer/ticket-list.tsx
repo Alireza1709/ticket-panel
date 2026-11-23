@@ -1,9 +1,11 @@
+import { PriorityBadge, StatusBadge } from "@/components/shared/ticket-badges";
+import { Skeleton } from "@/components/feedback/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { Inbox, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
-import { listSchema, priorities, statuses, jalali } from "@/lib/tickets";
-import { Pending, Failure, useAuthFailure } from "./shared";
+import { customerApi } from "@/lib/ticket-api";
+import { jalali } from "@/lib/tickets";
+import { Failure, useAuthFailure } from "@/components/shared/ticket-form";
 
 export function TicketList({
   userId,
@@ -14,21 +16,24 @@ export function TicketList({
 }) {
   const query = useQuery({
     queryKey: ["tickets", userId],
-    queryFn: () => api("/api/customer/tickets", listSchema),
+    queryFn: customerApi.list,
     retry: false,
   });
   useAuthFailure(query.error);
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-2xl font-bold">تیکت‌های من</h2>
+        <div className="page-heading">
+          <h2 className="page-title">تیکت‌های من</h2>
+          <p className="text-sm text-slate-600">پیگیری درخواست‌ها و پاسخ‌های پشتیبانی</p>
+        </div>
         <Button onClick={() => navigate("/customer/tickets/new")}>
           <Plus size={18} />
           ثبت تیکت جدید
         </Button>
       </div>
       {query.isPending ? (
-        <Pending />
+        <Skeleton kind="list" />
       ) : query.isError ? (
         <Failure
           error={query.error}
@@ -37,7 +42,7 @@ export function TicketList({
           }}
         />
       ) : query.data.tickets.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border p-10 text-center">
+        <div className="panel border-dashed p-10 text-center">
           <Inbox className="mx-auto mb-3 text-slate-400" size={36} />
           <h3 className="font-semibold">هنوز تیکتی ثبت نکرده‌اید</h3>
           <p className="mt-2 text-sm text-slate-500">
@@ -45,8 +50,8 @@ export function TicketList({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-sm">
+        <div className="panel table-scroll" tabIndex={0} role="region" aria-label="جدول تیکت‌ها">
+          <table className="ticket-table w-full text-start text-sm">
             <caption className="sr-only">فهرست تیکت‌های فعال حساب شما</caption>
             <thead className="border-b border-border text-slate-500">
               <tr>
@@ -69,7 +74,7 @@ export function TicketList({
             </thead>
             <tbody>
               {query.data.tickets.map((ticket) => (
-                <tr key={ticket.id} className="border-b border-slate-100">
+                <tr key={ticket.id} className="ticket-table-row">
                   <td className="p-3">
                     <a
                       href={`/customer/tickets/${ticket.id}`}
@@ -92,12 +97,10 @@ export function TicketList({
                   </td>
                   <td className="min-w-48 p-3 break-words">{ticket.subject}</td>
                   <td className="whitespace-nowrap p-3">
-                    {priorities[ticket.priority]}
+                    <PriorityBadge priority={ticket.priority} />
                   </td>
                   <td className="whitespace-nowrap p-3">
-                    <span className="rounded-full bg-teal-50 px-2 py-1 text-teal-800">
-                      {statuses[ticket.status]}
-                    </span>
+                    <StatusBadge status={ticket.status} />
                   </td>
                   <td className="whitespace-nowrap p-3">
                     <time dateTime={ticket.updated_at}>

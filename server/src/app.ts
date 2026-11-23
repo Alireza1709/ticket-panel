@@ -1,17 +1,18 @@
 import express from "express";
 import helmet from "helmet";
 import session from "express-session";
-import { pool } from "./db.js";
+import { errorHandler, notFound } from "./middlewares/error.middleware.js";
+import { registerHealthRoutes } from "./modules/health/index.js";
 import { config } from "./config.js";
 import { PostgresSessionStore } from "./session-store.js";
-import { customerTickets } from "./customer-tickets.js";
-import { staffRouter } from "./staff-tickets.js";
+import { customerTickets } from "./modules/tickets/customer/index.js";
+import { staffRouter } from "./modules/tickets/staff/index.js";
 import {
   authRouter,
   cookieOptions,
-  requireRole,
+  registerOverviewRoutes,
   sessionCookieName,
-} from "./auth.js";
+} from "./modules/auth/index.js";
 export const app = express();
 app.disable("x-powered-by");
 app.use(
@@ -29,19 +30,7 @@ app.use(
   }),
 );
 app.use(express.json({ limit: "100kb" }));
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", message: "سرور فعال است" });
-});
-app.get("/api/health/db", async (_req, res) => {
-  try {
-    await pool.query("SELECT 1");
-    res.json({ status: "ok", message: "پایگاه داده در دسترس است" });
-  } catch {
-    res
-      .status(503)
-      .json({ status: "error", message: "پایگاه داده در دسترس نیست" });
-  }
-});
+registerHealthRoutes(app);
 // Only the local reverse proxy is trusted; remote clients cannot choose their IP.
 app.set("trust proxy", "loopback");
 app.use("/api", (_req, res, next) => {
@@ -62,29 +51,6 @@ app.use(
 app.use("/api/auth", authRouter);
 app.use("/api/customer/tickets", customerTickets);
 app.use("/api/staff", staffRouter);
-app.get("/api/customer/overview", requireRole("customer"), (_req, res) => {
-  res.json({ user: res.locals.user, message: "به بخش تیکت‌های خود خوش آمدید" });
-});
-app.get("/api/staff/overview", requireRole("staff"), (_req, res) => {
-  res.json({ user: res.locals.user, message: "به صندوق پشتیبانی خوش آمدید" });
-});
-app.use((_req, res) => {
-  res.status(404).json({ message: "مسیر یافت نشد" });
-});
-const errorHandler: express.ErrorRequestHandler = (
-  error: unknown,
-  _req,
-  res,
-  _next,
-) => {
-  if (
-    error instanceof SyntaxError &&
-    "status" in error &&
-    error.status === 400
-  ) {
-    res.status(400).json({ message: "درخواست نامعتبر است" });
-    return;
-  }
-  res.status(500).json({ message: "خطایی در سرور رخ داد؛ دوباره تلاش کنید" });
-};
+registerOverviewRoutes(app);
+app.use(notFound);
 app.use(errorHandler);

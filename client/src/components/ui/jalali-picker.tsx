@@ -19,6 +19,8 @@ export function JalaliPicker(props: Props) {
       calendar={persian}
       locale={persianFa}
       calendarPosition="bottom-right"
+      onOpenPickNewDate={false}
+      mobileLabels={{ OK: "تأیید", CANCEL: "انصراف" }}
       {...props}
     />
   );

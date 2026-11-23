@@ -99,7 +99,8 @@ State-changing requests send `X-CSRF-Token` from the CSRF endpoint; login rotate
 ## Verification
 
 ```bash
-npm run check
+npm run c
+heck
 npm run build
 npm run test:auth
 npm run test:tickets
@@ -189,7 +190,7 @@ Inbox query parameters:
 | `from` | Optional ISO 8601 timestamp with `Z` or explicit offset; inclusive |
 | `to` | Optional ISO 8601 timestamp with `Z` or explicit offset; exclusive; later than `from` |
 
-Unknown/invalid parameters return HTTP 400. `from`/`to` must be real supported timestamps (year zero is rejected). All filters are applied before both counting and pagination. Count/page are read in a single repeatable-read snapshot. A page beyond the last page returns an empty list with the correct total; the UI offers page 1. Empty results report `total_pages=1` for navigation. SQL parameters carry every search/filter/limit/offset value; `%` and `_` are literal search characters, not wildcard operators. Large-scale text search/index optimization and cursor pagination are outside this interview milestone.
+Unknown/invalid parameters return HTTP 400. `from`/`to` must be real supported timestamps (year zero is rejected). All filters are applied before both counting and pagination. Count/page are read in a single repeatable-read snapshot. A page beyond the last page returns an empty list with the correct total; the UI offers page 1. Empty results report `total_pages=1` for navigation. SQL parameters carry every search/filter/limit/offset value; `%` and `_` are literal search characters, not wildcard operators. Large-scale text search/index optimization and cursor pagination are outside this  milestone.
 
 ### Jalali date ranges
 

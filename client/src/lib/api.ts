@@ -21,6 +21,9 @@ export class ApiError extends Error {
     super(message);
   }
 }
+// Empty by default so nginx and the Vite proxy can serve the API on the UI origin.
+const apiBase = (import.meta.env?.VITE_API_BASE_URL ?? "").trim().replace(/\/+$/, "");
+
 export async function api<T>(
   path: string,
   schema: z.ZodType<T>,
@@ -28,7 +31,7 @@ export async function api<T>(
 ): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path, { ...options, credentials: "same-origin" });
+    response = await fetch(`${apiBase}${path}`, { ...options, credentials: "same-origin" });
   } catch {
     throw new ApiError("ارتباط با سرور برقرار نشد؛ اتصال خود را بررسی کنید", 0);
   }

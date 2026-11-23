@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { JalaliPicker } from "@/components/ui/jalali-picker";
-import { inputClass } from "@/components/customer/shared";
+import { inputClass } from "@/components/shared/ticket-form";
 import {
   priorities,
   statuses,
@@ -77,20 +78,31 @@ export function InboxFilterForm({
           page: 1,
         }),
       )}
-      className="space-y-4 rounded-xl bg-slate-50 p-4"
+      className="panel space-y-4 p-4 sm:p-5"
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <div>
+      <div className="flex items-center gap-2 border-b border-border pb-3 text-sm font-semibold">
+        <SlidersHorizontal size={18} className="text-primary" aria-hidden="true" />
+        فیلتر تیکت‌ها
+      </div>
+      <div className="grid gap-4 min-[360px]:grid-cols-2 xl:grid-cols-3">
+        <div className="col-span-full sm:col-span-1">
           <label className="mb-2 block text-sm" htmlFor="staff-search">
             جست‌وجوی شماره یا موضوع
           </label>
-          <input
-            id="staff-search"
-            defaultValue={filters.q}
-            maxLength={100}
-            {...register("q")}
-            className={inputClass}
-          />
+          <div className="relative">
+            <Search
+              size={17}
+              aria-hidden="true"
+              className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-slate-500"
+            />
+            <input
+              id="staff-search"
+              defaultValue={filters.q}
+              maxLength={100}
+              {...register("q")}
+              className={`${inputClass} ps-9`}
+            />
+          </div>
           {errors.q && (
             <p role="alert" className="text-sm text-red-700">
               {errors.q.message}
@@ -134,9 +146,20 @@ export function InboxFilterForm({
           </select>
         </div>
         <div>
-          <label className="mb-2 block text-sm" htmlFor="staff-from">
-            تاریخ ثبت از
-          </label>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2">
+            <label className="text-sm" htmlFor="staff-from">
+              تاریخ ثبت از
+            </label>
+            {from && (
+              <button
+                type="button"
+                className="text-xs text-primary underline"
+                onClick={() => setValue("from", "", { shouldValidate: true })}
+              >
+                پاک‌کردن تاریخ شروع
+              </button>
+            )}
+          </div>
           <JalaliPicker
             id="staff-from"
             value={fromDate}
@@ -149,20 +172,22 @@ export function InboxFilterForm({
             inputClass={inputClass}
             placeholder="از تاریخ"
           />
-          {from && (
-            <button
-              type="button"
-              className="mt-1 text-xs text-primary underline"
-              onClick={() => setValue("from", "", { shouldValidate: true })}
-            >
-              پاک‌کردن تاریخ شروع
-            </button>
-          )}
         </div>
         <div>
-          <label className="mb-2 block text-sm" htmlFor="staff-to">
-            تاریخ ثبت تا
-          </label>
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2">
+            <label className="text-sm" htmlFor="staff-to">
+              تاریخ ثبت تا
+            </label>
+            {to && (
+              <button
+                type="button"
+                className="text-xs text-primary underline"
+                onClick={() => setValue("to", "", { shouldValidate: true })}
+              >
+                پاک‌کردن تاریخ پایان
+              </button>
+            )}
+          </div>
           <JalaliPicker
             id="staff-to"
             value={toDate}
@@ -175,15 +200,6 @@ export function InboxFilterForm({
             inputClass={inputClass}
             placeholder="تا تاریخ"
           />
-          {to && (
-            <button
-              type="button"
-              className="mt-1 text-xs text-primary underline"
-              onClick={() => setValue("to", "", { shouldValidate: true })}
-            >
-              پاک‌کردن تاریخ پایان
-            </button>
-          )}
           {errors.to && (
             <p role="alert" className="text-sm text-red-700">
               {errors.to.message}
