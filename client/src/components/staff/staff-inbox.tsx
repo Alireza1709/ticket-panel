@@ -8,10 +8,12 @@ import { staffApi } from "@/lib/ticket-api";
 import { jalali } from "@/lib/tickets";
 import {
   inboxSearch,
+  filterFormKey,
   parseInboxSearch,
   type InboxFilters,
 } from "@/lib/staff-inbox";
-import { InboxFilterForm } from "./inbox-filters";
+import { TicketFilters } from "@/components/shared/ticket-filters";
+import { TicketPagination } from "@/components/shared/ticket-pagination";
 
 function Results({
   userId,
@@ -33,7 +35,7 @@ function Results({
     navigate(`/staff/inbox?${inboxSearch(next)}`);
   return (
     <div className="space-y-5">
-      <InboxFilterForm
+      <TicketFilters staff userId={userId} key={filterFormKey(filters)}
         filters={filters}
         apply={go}
         clear={() => navigate("/staff/inbox")}
@@ -149,29 +151,8 @@ function Results({
               </table>
             </div>
           )}
-          <nav
-            aria-label="صفحه‌بندی تیکت‌ها"
-            className="panel flex flex-wrap items-center justify-between gap-3 p-3"
-          >
-            <Button
-              variant="outline"
-              disabled={filters.page <= 1}
-              onClick={() => go({ ...filters, page: filters.page - 1 })}
-            >
-              صفحه قبل
-            </Button>
-            <p className="text-sm">
-              صفحه {filters.page.toLocaleString("fa-IR")} از{" "}
-              {query.data.total_pages.toLocaleString("fa-IR")}
-            </p>
-            <Button
-              variant="outline"
-              disabled={filters.page >= query.data.total_pages}
-              onClick={() => go({ ...filters, page: filters.page + 1 })}
-            >
-              صفحه بعد
-            </Button>
-          </nav>
+          <TicketPagination page={filters.page} totalPages={query.data.total_pages}
+            go={(page) => go({ ...filters, page })} />
         </>
       )}
     </div>
@@ -195,7 +176,6 @@ export function StaffInbox({
       </header>
       {parsed.success ? (
         <Results
-          key={search}
           userId={userId}
           filters={parsed.data}
           navigate={navigate}

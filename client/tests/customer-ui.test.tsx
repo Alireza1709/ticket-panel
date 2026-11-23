@@ -8,12 +8,15 @@ import { TicketDetail } from "../src/components/customer/ticket-detail";
 import { CreateTicket } from "../src/components/customer/create-ticket";
 import { ApiError } from "../src/lib/api";
 import { createTicketSchema, type Detail } from "../src/lib/tickets";
+import { inboxSearch, inboxSchema } from "../src/lib/staff-inbox";
 import { Landing } from "../src/components/layout/landing";
 
 const userId = "10000000-0000-4000-8000-000000000001";
 const id = "20000000-0000-4000-8000-000000000001";
 const timestamp = "2026-11-17T08:00:00.000Z";
 const noop = () => {};
+const listKey = ["tickets", userId, inboxSearch(inboxSchema.parse({}))];
+const page = { total: 0, total_pages: 1, page: 1, page_size: 20 };
 function client() {
   return new QueryClient({
     defaultOptions: {
@@ -52,7 +55,7 @@ test("Landing renders the real Persian date picker for both roles without an inv
       user,
       message: "خوش آمدید",
     });
-    queryClient.setQueryData(["tickets", userId], { tickets: [] });
+    queryClient.setQueryData(listKey, { ...page, tickets: [] });
     try {
       // No date-picker mock: exercise Landing's actual import and Persian props.
       const html = renderToStaticMarkup(
@@ -67,9 +70,9 @@ test("Landing renders the real Persian date picker for both roles without an inv
         </QueryClientProvider>,
       );
       assert.match(html, /dir="rtl"/);
-      assert.match(html, /تقویم شمسی/);
-      assert.match(html, /<input[^>]*id="sample-date"/);
-      assert.match(html, /انتخاب تاریخ/);
+      assert.match(html, /تاریخ ثبت از/);
+      assert.match(html, /<input[^>]*id="[^"]+-from"/);
+      assert.match(html, /تاریخ به‌روزرسانی تا/);
     } finally {
       queryClient.clear();
     }
@@ -79,9 +82,10 @@ test("Landing renders the real Persian date picker for both roles without an inv
 test("customer list renders Persian loading, empty, error and populated states", async () => {
   const queryClient = client();
   assert.match(list(queryClient), /در حال دریافت اطلاعات/);
-  queryClient.setQueryData(["tickets", userId], { tickets: [] });
+  queryClient.setQueryData(listKey, { ...page, tickets: [] });
   assert.match(list(queryClient), /هنوز تیکتی ثبت نکرده‌اید/);
-  queryClient.setQueryData(["tickets", userId], {
+  queryClient.setQueryData(listKey, {
+    ...page, total: 1,
     tickets: [
       {
         id,
@@ -107,7 +111,7 @@ test("customer list renders Persian loading, empty, error and populated states",
   queryClient.removeQueries();
   await queryClient
     .fetchQuery({
-      queryKey: ["tickets", userId],
+      queryKey: listKey,
       queryFn: () => {
         throw new ApiError("خطای آزمایشی دریافت اطلاعات", 503);
       },

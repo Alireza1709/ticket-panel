@@ -4,7 +4,7 @@ import gregorianEn from "react-date-object/locales/gregorian_en";
 import persian from "react-date-object/calendars/persian";
 import persianFa from "react-date-object/locales/persian_fa";
 import { z } from "zod";
-import { statusSchema, prioritySchema } from "./tickets";
+import { statusSchema, prioritySchema, categorySchema } from "./tickets";
 
 export const CalendarDate =
   (DateObjectExport as unknown as { default?: typeof DateObjectExport })
@@ -76,6 +76,10 @@ export const inboxSchema = z
       .default(""),
     status: statusSchema.or(z.literal("")).default(""),
     priority: prioritySchema.or(z.literal("")).default(""),
+    category: categorySchema.or(z.literal("")).default(""),
+    assigned_to: z.uuid().or(z.literal("unassigned")).or(z.literal("")).default(""),
+    updated_from: timestamp.or(z.literal("")).default(""),
+    updated_to: timestamp.or(z.literal("")).default(""),
     from: timestamp.or(z.literal("")).default(""),
     to: timestamp.or(z.literal("")).default(""),
   })
@@ -84,6 +88,10 @@ export const inboxSchema = z
     (value) =>
       !value.from || !value.to || Date.parse(value.from) < Date.parse(value.to),
     { message: "تاریخ پایان نباید قبل از تاریخ شروع باشد", path: ["to"] },
+  )
+  .refine((value) => !value.updated_from || !value.updated_to ||
+    Date.parse(value.updated_from) < Date.parse(value.updated_to),
+    { message: "بازه به‌روزرسانی معتبر نیست", path: ["updated_to"] },
   );
 export type InboxFilters = z.output<typeof inboxSchema>;
 export function parseInboxSearch(search: string) {
@@ -94,7 +102,11 @@ export function inboxSearch(filters: InboxFilters): string {
     page: String(filters.page),
     page_size: String(filters.page_size),
   });
-  for (const key of ["q", "status", "priority", "from", "to"] as const)
+  for (const key of ["q", "status", "priority", "from", "to", "category", "updated_from", "updated_to", "assigned_to"] as const)
     if (filters[key]) params.set(key, filters[key]);
   return params.toString();
+}
+
+export function filterFormKey(filters: InboxFilters): string {
+  return inboxSearch({ ...filters, q: "", page: 1 });
 }

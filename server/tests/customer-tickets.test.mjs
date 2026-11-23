@@ -112,6 +112,20 @@ test("customer ticket ownership, validation, threads and soft cancellation", asy
         assert.equal(detail.data.history.length, 1);
         assert.equal(detail.data.history[0].to_status, "new");
         assert.equal(detail.data.ticket.customer_name, "سارا احمدی");
+        const search = new URLSearchParams({
+          q: detail.data.ticket.ticket_number.toLowerCase(),
+          category: "technical", priority: valid.priority, status: "new",
+          page_size: "1", updated_from: detail.data.ticket.updated_at,
+        });
+        const match = await request(a, `${root}?${search}`);
+        assert.equal(match.status, 200);
+        assert.equal(match.data.total, 1);
+        assert.equal(match.data.tickets[0].id, ticket.id);
+        assert.equal(match.data.total_pages, 1);
+        assert.equal((await request(b, `${root}?${search}`)).data.total, 0);
+        assert.deepEqual((await request(a, `${root}?${search}&page=2`)).data.tickets, []);
+        assert.equal((await request(a, `${root}?category=invalid`)).status, 400);
+        assert.equal((await request(a, `${root}?assigned_to=unassigned`)).status, 400);
         assert.equal(
           JSON.stringify(detail.data).includes("password_hash"),
           false,

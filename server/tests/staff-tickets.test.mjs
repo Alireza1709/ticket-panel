@@ -441,8 +441,20 @@ test("staff inbox, transitions, assignment and access restrictions", async (t) =
           ).status,
           200,
         );
-        const after = (await request(staff, `${root}/${ids[2]}`)).data.ticket;
+        const { ticket: after, assignments } = (await request(staff, `${root}/${ids[2]}`)).data;
         assert.equal(after.assigned_to, otherStaff);
+        assert.equal(assignments.length, 1);
+        assert.equal(assignments[0].assignee_name, "رضا محمدی");
+        assert.equal(assignments[0].author_name, "مریم کریمی");
+        assert.equal((await request(staff, `${root}/${ids[2]}/assignment`, {
+          assigned_to: otherStaff,
+        })).status, 200);
+        assert.deepEqual((await request(staff, `${root}/${ids[2]}`)).data.assignments, assignments);
+        const assigned = await request(staff, `${root}?assigned_to=${otherStaff}&q=${after.ticket_number}`);
+        assert.equal(assigned.status, 200);
+        assert.deepEqual(assigned.data.tickets.map(({ id }) => id), [ids[2]]);
+        const unassigned = await request(staff, `${root}?assigned_to=unassigned&q=${after.ticket_number}`);
+        assert.equal(unassigned.data.total, 0);
         assert.equal(after.assignee_name, "رضا محمدی");
         assert.ok(Date.parse(after.updated_at) > Date.parse(before.updated_at));
         for (const field of [

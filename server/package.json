@@ -15,7 +15,8 @@
     "config:session": "node scripts/session-secret.mjs",
     "test:tickets": "npm run build && node --test tests/customer-tickets.test.mjs",
     "test:staff": "npm run build && node --test tests/staff-tickets.test.mjs",
-    "test:production": "npm run build && node --test tests/production-config.test.mjs"
+    "test:production": "npm run build && node --test tests/production-config.test.mjs",
+    "staff:provision": "node dist/provision-staff.js"
   },
   "dependencies": {
     "argon2": "^0.45.2",

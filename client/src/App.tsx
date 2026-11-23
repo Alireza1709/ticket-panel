@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useSyncExternalStore } from "react";
+import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Login } from "@/components/auth/login";
+import { Register } from "@/components/auth/register";
 import { Failure } from "@/components/feedback/failure";
 import { Skeleton } from "@/components/feedback/skeleton";
 import { useClearToasts } from "@/components/feedback/toast";
@@ -26,6 +27,14 @@ export function App() {
     staleTime: 30000,
   });
   const user = me.data?.user ?? null;
+  const previousAccount = useRef<string | null>(null);
+  useEffect(() => {
+    if (!me.isSuccess) return;
+    if (previousAccount.current && previousAccount.current !== user?.id) {
+      queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== "me" });
+    }
+    previousAccount.current = user?.id ?? null;
+  }, [me.isSuccess, user?.id, queryClient]);
   const target = routeFor(user?.role ?? null, path);
   useEffect(() => {
     if (me.isSuccess) navigate(target);
@@ -54,6 +63,8 @@ export function App() {
         loading
       ) : user ? (
         <Landing key={user.id} user={user} onLogout={signedOut} path={path} />
+      ) : path === "/register" ? (
+        <Register />
       ) : (
         <Login
           onLogin={(account, csrfToken) => {

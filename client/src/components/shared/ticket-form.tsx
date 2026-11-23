@@ -6,8 +6,7 @@ import { Skeleton } from "@/components/feedback/skeleton";
 import { Failure } from "@/components/feedback/failure";
 export { Failure };
 
-export const inputClass =
-  "w-full rounded-lg border border-border bg-white px-3 py-2.5 focus:outline-primary disabled:opacity-60";
+export { inputClass } from "@/components/ui/field";
 export function useAuthFailure(error: Error | null) {
   const client = useQueryClient();
   useEffect(() => {

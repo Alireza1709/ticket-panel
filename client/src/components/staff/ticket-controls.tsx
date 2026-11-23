@@ -1,3 +1,4 @@
+import { Select } from "@/components/ui/select";
 import { useMutationSubmit } from "@/lib/mutation-submit";
 import { Skeleton } from "@/components/feedback/skeleton";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import {
   CsrfState,
   Failure,
-  inputClass,
   useAuthFailure,
   useTicketPost,
 } from "@/components/shared/ticket-form";
@@ -31,7 +31,7 @@ function StatusForm({
   const state = useTicketPost();
   const client = useQueryClient();
   const options = allowedTransitions[ticket.status];
-  const { register, handleSubmit } = useForm<z.infer<typeof changeSchema>>({
+  const { watch, setValue, handleSubmit } = useForm<z.infer<typeof changeSchema>>({
     resolver: zodResolver(changeSchema),
     defaultValues: { status: options[0] },
   });
@@ -59,18 +59,9 @@ function StatusForm({
       <label htmlFor="next-status" className="block font-semibold">
         تغییر وضعیت
       </label>
-      <select
-        id="next-status"
-        {...register("status")}
-        className={inputClass}
+      <Select id="next-status" value={watch("status")} options={options.map((value) => ({ value, label: statuses[value] }))}
         disabled={mutation.isPending}
-      >
-        {options.map((value) => (
-          <option value={value} key={value}>
-            {statuses[value]}
-          </option>
-        ))}
-      </select>
+        onChange={(value) => setValue("status", value, { shouldValidate: true })} />
       <CsrfState state={state} />
       {mutation.isError && <Failure error={mutation.error} />}
       <Button type="submit" disabled={!state.ready || mutation.isPending}>
@@ -94,7 +85,8 @@ function AssignmentForm({
 }) {
   const state = useTicketPost();
   const {
-    register,
+    watch,
+    setValue,
     handleSubmit,
     formState: { errors },
   } = useForm<z.infer<typeof assignSchema>>({
@@ -120,19 +112,9 @@ function AssignmentForm({
       <label htmlFor="assigned-staff" className="block font-semibold">
         واگذاری به کارشناس
       </label>
-      <select
-        id="assigned-staff"
-        {...register("assigned_to")}
-        disabled={mutation.isPending}
-        className={inputClass}
-      >
-        <option value="">انتخاب کارشناس</option>
-        {members.map((member) => (
-          <option key={member.id} value={member.id}>
-            {member.name}
-          </option>
-        ))}
-      </select>
+      <Select id="assigned-staff" value={watch("assigned_to")} options={members.map(({ id, name }) => ({ value: id, label: name }))}
+        disabled={mutation.isPending} searchable
+        onChange={(value) => setValue("assigned_to", value, { shouldValidate: true })} />
       {errors.assigned_to && (
         <p role="alert" className="text-sm text-red-700">
           {errors.assigned_to.message}

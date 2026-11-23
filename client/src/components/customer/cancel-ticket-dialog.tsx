@@ -25,6 +25,7 @@ export function CancelTicketDialog({
       client.removeQueries({ queryKey: ["ticket", userId, ticketId] });
       onCancelled(result.message);
       void client.invalidateQueries({ queryKey: ["tickets", userId] });
+      void client.invalidateQueries({ queryKey: ["overview"] });
     },
   });
   useEffect(() => {

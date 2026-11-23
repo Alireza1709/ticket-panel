@@ -36,6 +36,7 @@ export function StaffDetail({
       client.invalidateQueries({ queryKey: ["staff-inbox"] }),
       client.invalidateQueries({ queryKey: ["tickets"] }),
       client.invalidateQueries({ queryKey: ["ticket"] }),
+      client.invalidateQueries({ queryKey: ["overview"] }),
     ]);
   }
   const back = (
@@ -63,7 +64,7 @@ export function StaffDetail({
         />
       </div>
     );
-  const { ticket, messages, history } = query.data;
+  const { ticket, messages, history, assignments } = query.data;
   return (
     <div className="space-y-6">
       {back}
@@ -77,7 +78,7 @@ export function StaffDetail({
           <MessageThread messages={messages} />
           <ReplyForm ticketId={id} userId={userId} audience="staff" />
         </div>
-        <StatusHistory history={history} />
+        <StatusHistory history={history} assignments={assignments} />
       </div>
     </div>
   );

@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { once } from "node:events";
 import test from "node:test";
 import argon2 from "argon2";
@@ -60,6 +63,7 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
           "tickets",
           "ticket_messages",
           "status_history",
+          "ticket_assignment_history",
           "sessions",
           "schema_migrations",
         ];
@@ -86,19 +90,23 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
           }
         }
         const guards = await pool.query(
-          "SELECT count(*)::int AS count FROM pg_trigger WHERE NOT tgisinternal AND tgname = ANY($1::text[])",
+          `SELECT count(*)::int AS count FROM pg_trigger
+             JOIN pg_class ON pg_class.oid = tgrelid
+             JOIN pg_namespace ON pg_namespace.oid = relnamespace
+             WHERE nspname = current_schema() AND NOT tgisinternal AND tgname = ANY($1::text[])`,
           [
             [
               "users_no_delete",
               "tickets_no_delete",
               "messages_no_delete",
               "history_no_delete",
+              "assignment_history_no_delete",
               "sessions_no_delete",
               "migrations_no_delete",
             ],
           ],
         );
-        assert.equal(guards.rows[0].count, 6);
+        assert.equal(guards.rows[0].count, 7);
         const assignments =
           await pool.query(`SELECT count(*)::int AS count FROM tickets t JOIN users u ON u.id = t.assigned_to
         WHERE NOT t.is_cancelled AND u.role <> 'staff'`);
@@ -138,7 +146,7 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
         );
         assert.deepEqual(
           migrations.rows.map((row) => row.version),
-          ["001_initial.sql", "002_ticket_category.sql"],
+          ["001_initial.sql", "002_ticket_category.sql", "003_ticket_assignment_history.sql"],
         );
         const accounts = await pool.query(
           "SELECT email, password_hash FROM users WHERE id::text LIKE '10000000-0000-4000-8000-%' AND NOT is_cancelled ORDER BY email",
@@ -158,6 +166,32 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
         }
       },
     );
+    await t.test("registration validates confirmation, rejects role injection and creates a login-capable customer", async () => {
+      const account = browser();
+      const email = `registration-${randomUUID()}@example.test`;
+      const password = randomUUID();
+      const values = { name: "Registered Customer", email, password, confirmation: password };
+      assert.equal((await request(account, "/api/auth/register", values)).response.status, 403);
+      await prepare(account);
+      assert.equal((await request(account, "/api/auth/register", { ...values, role: "staff" })).response.status, 400);
+      assert.equal((await request(account, "/api/auth/register", { ...values, confirmation: "mismatch" })).response.status, 400);
+      try {
+        assert.equal((await request(account, "/api/auth/register", { ...values, email: email.toUpperCase() })).response.status, 201);
+        assert.equal((await request(account, "/api/auth/register", values)).response.status, 409);
+        assert.equal((await request(account, "/api/auth/me")).body.user, null);
+        const login = await request(account, "/api/auth/login", { email, password });
+        assert.equal(login.response.status, 200);
+        assert.equal(login.body.user.role, "customer");
+        assert.equal(login.body.user.email, email);
+        assert.equal((await request(account, "/api/staff/overview")).response.status, 403);
+        const overview = await request(account, "/api/customer/overview");
+        assert.equal(overview.response.status, 200);
+        assert.equal(overview.body.overview.total, 0);
+        assert.deepEqual(overview.body.overview.recent, []);
+      } finally {
+        await pool.query("UPDATE users SET is_cancelled = TRUE WHERE email = $1", [email]);
+      }
+    });
     await t.test(
       "unauthenticated protected API is denied and current-user is anonymous",
       async () => {
@@ -339,6 +373,30 @@ test("seed integrity, authentication, CSRF, persisted sessions and role authoriz
         );
       },
     );
+    await t.test("the local operator can provision a staff account whose expired session cannot be reused", async () => {
+      const email = `staff-${randomUUID()}@example.test`;
+      const password = randomUUID();
+      const cli = fileURLToPath(new URL("../dist/provision-staff.js", import.meta.url));
+      const provision = (input) => spawnSync(
+        process.execPath, [cli, "Provisioned Staff", email], { input: `${input}\n`, encoding: "utf8" },
+      );
+      try {
+        assert.equal(provision(password).status, 0);
+        assert.equal(provision(randomUUID()).status, 1);
+        const account = browser();
+        await prepare(account);
+        const login = await request(account, "/api/auth/login", { email, password });
+        assert.equal(login.response.status, 200);
+        assert.equal(login.body.user.role, "staff");
+        assert.equal((await request(account, "/api/staff/overview")).response.status, 200);
+        const sid = decodeURIComponent(account.cookie.split("=")[1]).slice(2).split(".")[0];
+        await pool.query("UPDATE sessions SET expires_at = now() WHERE sid = $1", [sid]);
+        assert.deepEqual((await request(account, "/api/auth/me")).body, { user: null });
+        assert.equal((await request(account, "/api/staff/overview")).response.status, 401);
+      } finally {
+        await pool.query("UPDATE users SET is_cancelled = TRUE WHERE email = $1", [email]);
+      }
+    });
     await t.test("both existing health endpoints remain healthy", async () => {
       for (const path of ["/api/health", "/api/health/db"])
         assert.equal((await request(browser(), path)).response.status, 200);

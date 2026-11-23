@@ -7,6 +7,8 @@ import {
   cancelTicket,
 } from "../../../models/customer-ticket.model.js";
 import { cancelSchema, createSchema, idSchema, replySchema } from "./customer.validator.js";
+import { customerFilters } from "../ticket-filters.js";
+import { listFilteredTickets } from "../../../models/ticket-list.model.js";
 
 function ticketId(req: Request, res: Response): string | null {
   const result = idSchema.safeParse(req.params.id);
@@ -22,7 +24,23 @@ function notFound(res: Response) {
 }
 
 export async function list(req: Request, res: Response) {
-  res.json({ tickets: await listTickets(req.session.userId!) });
+  // The legacy list ignored customer_id. Keep ignoring it and always use the session owner.
+  const { customer_id: _ignoredOwner, ...query } = req.query;
+  const filters = customerFilters.safeParse(query);
+  if (!filters.success) {
+    res.status(400).json({ message: "فیلترهای تیکت معتبر نیستند" });
+    return;
+  }
+  const userId = req.session.userId!;
+  if (Object.keys(query).length === 0) {
+    res.json({ tickets: await listTickets(userId) });
+    return;
+  }
+  const result = await listFilteredTickets(filters.data, userId);
+  res.json({
+    ...result,
+    tickets: result.tickets.map(({ assigned_to, assignee_name, customer_name, ...ticket }) => ticket),
+  });
 }
 
 export async function create(req: Request, res: Response) {

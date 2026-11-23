@@ -13,9 +13,9 @@ export function CustomerTickets({
   navigate: (path: string) => void;
 }) {
   const notify = useToast();
-  const pathname = path.split("?")[0]!;
-  const id = pathname.slice("/customer/tickets/".length);
+  const [pathname, search] = path.split("?");
+  const id = pathname!.slice("/customer/tickets/".length);
   if (pathname === "/customer/tickets/new") return <CreateTicket navigate={navigate} notify={notify} />;
-  if (pathname === "/customer/tickets") return <TicketList userId={userId} navigate={navigate} />;
-  return <TicketDetail key={id} id={id} userId={userId} navigate={navigate} notify={notify} />;
+  if (pathname === "/customer/tickets") return <TicketList userId={userId} navigate={navigate} search={search} />;
+  return <TicketDetail search={search} key={id} id={id} userId={userId} navigate={navigate} notify={notify} />;
 }

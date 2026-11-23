@@ -86,7 +86,7 @@ export async function assign(req: Request<{ id: string }>, res: Response) {
     res.status(400).json({ message: "کارشناس معتبر انتخاب کنید" });
     return;
   }
-  const result = await assignTicket(req.params.id, parsed.data.assigned_to);
+  const result = await assignTicket(req.params.id, parsed.data.assigned_to, req.session.userId!);
   if (!result) {
     missing(res);
     return;

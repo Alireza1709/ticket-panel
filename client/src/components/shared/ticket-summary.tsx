@@ -8,6 +8,7 @@ export function TicketSummary({ ticket }: { ticket: Detail["ticket"] }) {
     ["اولویت", <PriorityBadge priority={ticket.priority} />],
     ["دسته‌بندی", categories[ticket.category]],
     ["مشتری", ticket.customer_name],
+    ...(ticket.customer_email ? [["ایمیل مشتری", <bdi>{ticket.customer_email}</bdi>] as const] : []),
     [
       "کارشناس",
       ticket.assigned_to

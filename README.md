@@ -1,11 +1,11 @@
 # Support ticket application
 
-Milestones 1–4: Persian RTL support-ticket application with customer management and a complete staff inbox, replies, status history and assignment. Milestone 5A adds a reviewed HTTP production deployment; see the deployment section below.
+Persian RTL support-ticket platform with public customer registration, operator-provisioned staff accounts, role-specific dashboards, searchable ticket queues and an audited ticket workflow.
 
 ## Architecture
 
 - `client/`: React + Vite + strict TypeScript; Tailwind CSS, shadcn-style Button, lucide icons, TanStack Query, React Hook Form + Zod, Jalali calendar/date picker.
-- `server/`: Express + strict TypeScript, PostgreSQL pool, Argon2id passwords, PostgreSQL-backed express-session sessions.
+- `server/`: Express + strict TypeScript, PostgreSQL pool, Argon2id passwords, PostgreSQL-backed express-session sessions. Express routes and validators are organized by feature, with controllers coordinating PostgreSQL models and centralized error handling.
 - Vite proxies `/api` to Express on `127.0.0.1:3000`. Both development servers bind to localhost.
 - Production deployment: nginx on port 80 serves only `client/dist` copied to `/var/www/tickets-app`, and proxies `/api` to the compiled API on `127.0.0.1:3001`. `tickets-api.service` runs the API as `drbtest01` after reboot. Installation uses the manual sudo steps below.
 
@@ -68,13 +68,27 @@ These deliberately public demonstration credentials are not database credentials
 | Staff | `maryam@example.test` | `DemoStaff1!2026` |
 | Staff | `reza@example.test` | `DemoStaff2!2026` |
 
-Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out visitors go to `/login`. Customers can now list, create, view, reply to and cancel eligible tickets. Staff can search/filter/page through all active tickets, reply, assign active staff and change status according to the transition policy below.
+Customers land at `/customer/tickets` and can register at `/register`. The customer panel provides an overview, ticket list, ticket creation, conversations and status history, and a read-only account profile. Staff land at `/staff/inbox` and have their own overview, inbox and profile. Staff can filter by assignee, view customer contact details, reply, assign active staff and progress tickets through the status policy below.
+
+## Staff provisioning
+
+An operator with access to the application database configuration creates staff accounts using the local administrative command. The command requires a password of at least 12 characters on standard input. Run it from Bash with the intended database configuration:
+
+```bash
+npm run build -w server
+read -rs -p 'New staff password: ' staff_password
+printf '\n'
+printf '%s\n' "$staff_password" | npm run staff:provision -w server -- 'Staff Name' 'agent@example.com'
+unset staff_password
+```
+
+The password is hashed with Argon2id. If the email already exists, provisioning exits with an error and leaves that account's role and password intact. For production, select the restricted production database environment before running the command. Public registration accepts customer account fields only.
 
 ## Migrations and seed
 
 - Ordered SQL files live in `server/migrations`. Each migration runs in a transaction. An advisory lock prevents concurrent migrations; checksums detect changes to already-applied files.
 - To change an applied schema, add a new numbered migration; never edit the applied file. There is no automatic destructive down/reset command.
-- Tables: `users`, `tickets`, `ticket_messages`, `status_history`, plus `sessions` and `schema_migrations` infrastructure tables.
+- Tables: `users`, `tickets`, `ticket_messages`, `status_history`, `ticket_assignment_history`, plus `sessions` and `schema_migrations` infrastructure tables.
 - Every table has UUID `id`, `created_at`, `created_by`, and `is_cancelled DEFAULT FALSE`. Application tables also have `updated_at`, maintained by triggers. Application creators are required; infrastructure creators are nullable before login. The initial staff account references itself as creator using a deferred foreign key.
 - Foreign keys enforce customer ownership and staff-only assignment. Statuses: `new`, `in_progress`, `waiting_customer`, `resolved`, `closed`. Priorities: `low`, `normal`, `high`, `urgent`.
 - Ticket numbers such as `TKT-00000001` use a unique sequence. Gaps are normal, including after repeat seed runs.
@@ -88,19 +102,19 @@ Customers land at `/customer/tickets`; staff land at `/staff/inbox`. Signed-out 
 | `GET /api/health` | Process health, no session required |
 | `GET /api/health/db` | Read-only PostgreSQL check (`SELECT 1`) |
 | `GET /api/auth/csrf` | Issues a session-bound CSRF token |
+| `POST /api/auth/register` | Creates a customer from `{name,email,password,confirmation}`. CSRF required. Returns 201 or 409 for an existing email |
 | `POST /api/auth/login` | Zod-validated `{email,password}`; CSRF header required |
 | `GET /api/auth/me` | Safe current-user fields, or `{user:null}` |
 | `POST /api/auth/logout` | Empty object body; CSRF required; cancels session |
-| `GET /api/customer/overview` | Customer role required |
-| `GET /api/staff/overview` | Staff role required |
+| `GET /api/customer/overview` | Customer counts and latest owned tickets |
+| `GET /api/staff/overview` | Staff queue counts, count assigned to the current agent, and latest updated tickets |
 
 State-changing requests send `X-CSRF-Token` from the CSRF endpoint; login rotates both the session ID and token. The frontend manages these tokens in memory, never localStorage. POST requests with a supplied Origin must match `APP_ORIGIN`. SameSite=Lax and HttpOnly cookies add browser protections. Only the opaque signed session ID is in the cookie; session data is in PostgreSQL. Cookie lifetime is eight hours. A fresh user lookup enforces current role/cancellation status on every protected request. Responses never include password hashes. Login failures have a generic Persian message and an IP-based rate limit (10 failed requests per 15 minutes, in memory).
 
 ## Verification
 
 ```bash
-npm run c
-heck
+npm run check
 npm run build
 npm run test:auth
 npm run test:tickets
@@ -118,7 +132,7 @@ curl --fail http://127.0.0.1:3000/api/health
 curl --fail http://127.0.0.1:3000/api/health/db
 ```
 
-`npm start` runs the compiled API after `npm run build`; it does not serve the frontend yet. If you change `PORT`, update the Vite proxy too. Browser automation is not installed; frontend verification includes TypeScript, production build, route tests and customer component rendering tests, not browser click tests.
+`npm start` runs the compiled API after `npm run build`; it does not serve the frontend yet. If you change `PORT`, update the Vite proxy too. The repository test scripts run type checks, build checks, route tests and component rendering tests. Use a fresh seeded development database for integration verification because the seed integrity assertions expect all 20 fixed demo tickets to be active.
 
 ## Completion status
 
@@ -143,7 +157,7 @@ Dates/times on customer ticket pages use the Persian calendar and Tehran time zo
 
 | Method / endpoint | Customer-only behavior |
 | --- | --- |
-| `GET /api/customer/tickets` | List only session customer's active tickets |
+| `GET /api/customer/tickets` | Session customer's active tickets. Pass `page` or another list filter for pagination metadata. Queryless clients keep the legacy response |
 | `POST /api/customer/tickets` | Create from `{subject,description,priority,category}`; HTTP 201 |
 | `GET /api/customer/tickets/:id` | Metadata, active message thread and active status history |
 | `POST /api/customer/tickets/:id/replies` | Reply using `{body}`; HTTP 201; updates ticket timestamp |
@@ -159,11 +173,11 @@ Replies are allowed on any owned non-cancelled ticket, including resolved/closed
 
 ## Milestone 4: support staff
 
-No new migration or environment setting is required for Milestone 4. Do not reset the database or rerun the seed to enable staff features. Restart the API and Vite dev processes if they were not watching changes.
+Run `npm run db:migrate` before deploying the updated API. Migration `003_ticket_assignment_history.sql` records subsequent assignment changes without altering existing assignments.
 
-Staff start at `/staff/inbox`. The inbox lists all non-cancelled tickets by **creation time descending, then UUID descending**; the displayed last-update date changes after replies, assignment and status changes, but ordering remains by creation time. Open a ticket for metadata, chronological active messages and read-only status history. Staff can reply, assign an active staff member and choose one of the allowed next statuses.
+Staff start at `/staff/inbox`. The inbox lists all non-cancelled tickets by **creation time descending, then UUID descending**; the displayed last-update date changes after replies, assignment and status changes, but ordering remains by creation time. Open a ticket for metadata, chronological active messages and an activity timeline for status and assignment changes. Staff can reply, assign an active staff member and choose one of the allowed next statuses.
 
-Search, status, priority, date boundaries, page and page size live in URL query parameters. Applying filters resets page to 1; changing pages preserves filters. Refreshing or sharing a filtered URL preserves its state. Detail links keep the same query so “back to inbox” returns to that filtered page. Invalid URL parameters show a Persian reset/retry state. Draft filter edits are applied when you press «اعمال فیلترها».
+Both ticket lists store search, status, priority, category, created and updated date ranges, page and page size in URL query parameters. The staff inbox also supports assigned agent and unassigned filters. Search updates after a 350 ms pause. Applying filters resets page to 1; changing pages preserves filters. Refreshing or sharing a filtered URL preserves its state. Detail links keep the same query so “back to inbox” returns to that filtered page. Invalid URL parameters show a Persian reset/retry state. Draft filter edits are applied when you press «اعمال فیلترها».
 
 ### Staff API
 
@@ -178,7 +192,7 @@ All routes require the current authenticated role `staff`; signed-out requests r
 | `POST /api/staff/tickets/:id/status` | `{status}`; a permitted next status |
 | `POST /api/staff/tickets/:id/assignment` | `{assigned_to}`; active staff UUID |
 
-Inbox query parameters:
+Ticket list query parameters
 
 | Parameter | Rules |
 | --- | --- |
@@ -189,12 +203,15 @@ Inbox query parameters:
 | `q` | Trimmed literal case-insensitive substring of ticket number or subject; at most 100 characters |
 | `from` | Optional ISO 8601 timestamp with `Z` or explicit offset; inclusive |
 | `to` | Optional ISO 8601 timestamp with `Z` or explicit offset; exclusive; later than `from` |
+| `category` | `technical`, `billing`, `account` or `other` |
+| `updated_from` / `updated_to` | Inclusive start and exclusive end for last update |
+| `assigned_to` | Staff list only. Active or historical agent UUID, or `unassigned` |
 
 Unknown/invalid parameters return HTTP 400. `from`/`to` must be real supported timestamps (year zero is rejected). All filters are applied before both counting and pagination. Count/page are read in a single repeatable-read snapshot. A page beyond the last page returns an empty list with the correct total; the UI offers page 1. Empty results report `total_pages=1` for navigation. SQL parameters carry every search/filter/limit/offset value; `%` and `_` are literal search characters, not wildcard operators. Large-scale text search/index optimization and cursor pagination are outside this  milestone.
 
 ### Jalali date ranges
 
-The two Jalali pickers select the first and last calendar days inclusively, interpreted in **Asia/Tehran**, regardless of the browser/VM timezone. The browser converts them to UTC ISO strings: start of the first selected day, and start of the day after the last selected day. It sends no ambiguous Jalali strings to PostgreSQL.
+Each pair of Jalali pickers selects the first and last calendar days inclusively, interpreted in **Asia/Tehran**, regardless of the browser/VM timezone. The browser converts them to UTC ISO strings: start of the first selected day, and start of the day after the last selected day. It sends no ambiguous Jalali strings to PostgreSQL.
 
 For example, selecting **۱۴۰۵/۰۱/۰۱** for both endpoints produces:
 
@@ -203,7 +220,7 @@ from=2026-03-20T20:30:00.000Z
 to=2026-03-21T20:30:00.000Z
 ```
 
-The API uses `created_at >= from AND created_at < to`. Conversion uses the IANA Tehran timezone, including historical daylight-saving rules; it does not assume the host timezone or a permanent fixed offset. UTC, Los Angeles, Tokyo, Persian New Year/leap-day and historical DST cases are tested. The shared `JalaliPicker` retains the CommonJS/default-export normalization that fixed the earlier blank-screen issue.
+The API applies the same inclusive-start, exclusive-end rule to creation and last-update timestamps. Conversion uses the IANA Tehran timezone, including historical daylight-saving rules; it does not assume the host timezone or a permanent fixed offset. UTC, Los Angeles, Tokyo, Persian New Year/leap-day and historical DST cases are tested. The shared `JalaliPicker` retains the CommonJS/default-export normalization that fixed the earlier blank-screen issue.
 
 ### Status transition policy
 
@@ -215,13 +232,13 @@ The API uses `created_at >= from AND created_at < to`. Conversion uses the IANA 
 | `resolved` | `in_progress` (reopen), `closed` |
 | `closed` | None; terminal status |
 
-This policy governs new API changes; existing demonstration history is preserved. Skipping from new to resolved/closed, returning to new, or submitting the same status returns HTTP 409. A transaction locks the active ticket, validates its current status, updates it and inserts history with the authenticated staff actor. Invalid or concurrent duplicate transitions do not create history records. Assignment and replies are independent of status: as with the existing customer behavior, replies on resolved/closed tickets do not reopen them. Assignment updates only `assigned_to` (plus the normal timestamp trigger); assigning the same staff member is a successful no-op. Unassignment is not part of this milestone. Active-ticket checks and row locks prevent writes to cancelled tickets; these return 404. Customer IDs, inactive staff, unknown IDs, malformed UUIDs and caller-supplied actor fields are rejected.
+This policy governs new API changes; existing demonstration history is preserved. Skipping from new to resolved/closed, returning to new, or submitting the same status returns HTTP 409. A transaction locks the active ticket, validates its current status, updates it and inserts history with the authenticated staff actor. Invalid or concurrent duplicate transitions do not create history records. Assignment and replies are independent of status: as with the existing customer behavior, replies on resolved/closed tickets do not reopen them. Assignment updates the ticket and records the actor, previous assignee and new assignee in one transaction. Assigning the same staff member is a successful no-op. Unassignment is not part of this milestone. Active-ticket checks and row locks prevent writes to cancelled tickets; these return 404. Customer IDs, inactive staff, unknown IDs, malformed UUIDs and caller-supplied actor fields are rejected.
 
 ### Staff verification
 
 `npm run test:staff` runs backend integration tests and frontend URL/date/rendering tests. It creates its own tickets and an already-cancelled staff fixture, then soft-cancels test tickets/messages/history. It never alters the 20 original seed tickets or deletes records. The inactive fixture remains as a cancelled audit record.
 
-The suite covers both seeded customers, customer/anonymous denial on every staff endpoint, pagination/totals/stable tie ordering, combined filters, number/subject search, date boundaries, request validation, CSRF/Origin/actor spoofing, staff reply authors/order, transition history/reopening/invalid/concurrent changes, active-only assignment and cancelled-ticket denial. React tests render the actual staff Landing inbox/detail with real Jalali filter/footer pickers, persisted filters, pagination and loading/empty/error states. Picker text initializes during browser mounting, so calendar conversion and URL restoration are separately tested as well. Full browser clicking/keyboard interaction remains a manual review step; it is not claimed by server rendering tests.
+The suite covers both seeded customers, customer/anonymous denial on every staff endpoint, pagination/totals/stable tie ordering, combined filters, number/subject search, date boundaries, request validation, CSRF/Origin/actor spoofing, staff reply authors/order, transition history/reopening/invalid/concurrent changes, active-only assignment and cancelled-ticket denial. React tests render the actual staff Landing inbox/detail with real Jalali filter pickers, persisted filters, pagination and loading/empty/error states. Picker text initializes during browser mounting, so calendar conversion and URL restoration are separately tested as well. Browser interaction is checked separately from server rendering tests.
 
 ## Milestone 5A: HTTP production deployment
 
@@ -429,3 +446,10 @@ The API must listen only at 127.0.0.1:3001; PostgreSQL only on loopback:5432; ng
 - Reboot evidence reviewed on 2026-11-17: the operator reports completing full reboot verification. The journal records distinct previous/current boots, with current boot time 11:32:39 UTC. nginx became active at 11:33:57; the API and PostgreSQL at 11:34:00. Required services are enabled at boot; the acceptance audit verified working port-80 health, SPA routes and matching published assets after this boot. This establishes a real boot and working post-boot services, beyond enablement alone.
 - The ignored smoke state contains only a scrubbed completion marker, modified at 11:37:29 UTC. It retains no boot ID or assertion output; `smoke.mjs` writes it during cleanup, so the marker alone is not proof that every verification assertion passed. Full-reboot session/data persistence remains operator-reported and is not independently established from retained artifacts. Browser interactions and a fresh-VM rebuild are also not independently verified. Do not rerun a reboot merely to update this record.
 - Final correction verification: `npm run check`, `npm run build`, `npm run test:auth`, `npm run test:tickets`, `npm run test:staff`, `npm run test:health` and `npm run test:production` all passed (50 reported tests, including parent tests). NOTES was typeset to one A4 page with 18 mm margins, 11 pt body text and 14 pt leading. Six personal-hours placeholders remain for the owner. The corrected frontend was built, but not copied to `/var/www/tickets-app`; publish `client/dist/.` there using the existing manual update procedure before submitting the revised UI. No configuration change, API restart or reboot is needed for these text-only frontend changes.
+
+
+## Session route diagnostics
+
+The current-user endpoint is `GET /api/auth/me`. A signed-out request returns HTTP 200 with `{"user":null}`. Development uses Vite on 5173 forwarding to Express on 3000. Nginx uses the configured virtual host and forwards to the systemd API on 3001. A request to Nginx's default host can return 404 even when the ticket virtual host works.
+
+To diagnose a 502, compare a direct request to the appropriate Express port against the same request through the browser's origin. Check the active service journal and nginx upstream error log for the occurrence, then verify the configured virtual host and prefix. A browser session cookie is needed to see an authenticated user, while an anonymous 200 verifies routing independently of cookie state.

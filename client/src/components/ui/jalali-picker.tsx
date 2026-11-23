@@ -5,7 +5,7 @@ import DatePickerExport, {
 import persian from "react-date-object/calendars/persian";
 import persianFa from "react-date-object/locales/persian_fa";
 
-// Preserve the interop fix for both the footer and staff date filters.
+// Preserve the interop fix for the shared ticket date filters.
 const DatePicker =
   (DatePickerExport as unknown as { default?: typeof DatePickerExport })
     .default ?? DatePickerExport;

@@ -30,3 +30,14 @@ test("customer create/detail URLs stay protected and survive direct navigation",
     "/customer/tickets",
   );
 });
+
+test("registration is public and overview and profile require the matching role", () => {
+  assert.equal(routeFor(null, "/register"), "/register");
+  for (const role of ["customer", "staff"] as const) {
+    assert.equal(routeFor(role, "/register"), homeFor(role));
+    for (const page of ["overview", "profile"]) {
+      assert.equal(routeFor(role, `/${role}/${page}`), `/${role}/${page}`);
+      assert.equal(routeFor(null, `/${role}/${page}`), "/login");
+    }
+  }
+});

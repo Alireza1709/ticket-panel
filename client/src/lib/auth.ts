@@ -7,3 +7,7 @@ export const loginWithPassword = (values: { email: string; password: string }, t
   api("/api/auth/login", loginResponseSchema, postOptions(values, token));
 export const logoutSession = (token: string) =>
   api("/api/auth/logout", successSchema, postOptions({}, token));
+
+export type Registration = { name: string; email: string; password: string; confirmation: string };
+export const registerCustomer = (values: Registration, token: string) =>
+  api("/api/auth/register", successSchema, postOptions(values, token));

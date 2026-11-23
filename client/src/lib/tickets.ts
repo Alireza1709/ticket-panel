@@ -66,10 +66,17 @@ export const ticketSchema = z.object({
   updated_at: z.iso.datetime(),
 });
 export const listSchema = z.object({ tickets: z.array(ticketSchema) });
+export const paginatedListSchema = listSchema.extend({
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total: z.number().int(),
+  total_pages: z.number().int(),
+});
 export const detailSchema = z.object({
   ticket: ticketSchema.extend({
     description: z.string(),
     customer_name: z.string(),
+    customer_email: z.email().nullable().optional(),
     assigned_to: z.uuid().nullable(),
     assignee_name: z.string().nullable(),
   }),
@@ -82,6 +89,9 @@ export const detailSchema = z.object({
       author_role: z.enum(["customer", "staff"]).nullable(),
     }),
   ),
+  assignments: z.array(z.object({
+    id: z.uuid(), created_at: z.iso.datetime(), author_name: z.string(), assignee_name: z.string(),
+  })).optional(),
   history: z.array(
     z.object({
       id: z.uuid(),

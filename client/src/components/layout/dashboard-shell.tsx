@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { Headphones, Inbox, LogOut, Menu, Plus, Ticket, X } from "lucide-react";
+import { Headphones, Inbox, LayoutDashboard, UserRound, LogOut, Menu, Plus, Ticket, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/api";
 
@@ -20,6 +20,7 @@ export function DashboardShell({
   logoutPending: boolean;
   children: ReactNode;
 }) {
+  const accountMenu = useRef<HTMLDetailsElement>(null);
   const drawer = useRef<HTMLDialogElement>(null);
   const drawerId = useId();
   useEffect(() => {
@@ -32,14 +33,19 @@ export function DashboardShell({
   }, []);
   const staff = user.role === "staff";
   const search = path.includes("?") ? path.slice(path.indexOf("?")) : "";
-  const listPath = staff ? `/staff/inbox${search}` : "/customer/tickets";
+  const pathname = path.split("?")[0]!;
+  const listPath = staff ? `/staff/inbox${search}` : `/customer/tickets${search}`;
   const createPath = "/customer/tickets/new";
   const items = staff
-    ? [{ href: listPath, label: "صندوق پشتیبانی", icon: Inbox, active: true }]
+    ? [{ href: listPath, label: "صندوق پشتیبانی", icon: Inbox, active: pathname === "/staff/inbox" || pathname.startsWith("/staff/tickets/") }]
     : [
-        { href: listPath, label: "تیکت‌های من", icon: Ticket, active: path !== createPath },
-        { href: createPath, label: "ثبت تیکت جدید", icon: Plus, active: path === createPath },
+        { href: listPath, label: "تیکت‌های من", icon: Ticket, active: pathname.startsWith("/customer/tickets") && pathname !== createPath },
+        { href: createPath, label: "ثبت تیکت جدید", icon: Plus, active: pathname === createPath },
       ];
+  const overview = `/${user.role}/overview`;
+  const profile = `/${user.role}/profile`;
+  items.unshift({ href: overview, label: "نمای کلی", icon: LayoutDashboard, active: pathname === overview });
+  items.push({ href: profile, label: "حساب کاربری", icon: UserRound, active: pathname === profile });
   const role = staff ? "کارشناس پشتیبانی" : "مشتری";
   const brand = (
     <div className="brand">
@@ -117,15 +123,26 @@ export function DashboardShell({
             >
               <Menu size={23} aria-hidden="true" />
             </button>
-            <h1 className="text-sm font-bold sm:text-base">پنل پشتیبانی</h1>
+            <h1 className="text-sm font-bold sm:text-base">{items.find((item) => item.active)?.label ?? "پنل پشتیبانی"}</h1>
           </div>
-          <div className="flex min-w-0 items-center gap-2.5">
-            <span className="profile-mark" aria-hidden="true">{user.name.trim()[0]}</span>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-semibold">{user.name}</p>
-              <p className="text-xs text-slate-600">{role}</p>
+          <details ref={accountMenu} className="account-menu min-w-0">
+            <summary className="flex cursor-pointer items-center gap-2.5 rounded-lg" aria-label="منوی حساب کاربری">
+              <span className="profile-mark" aria-hidden="true">{user.name.trim()[0]}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold">{user.name}</span>
+                <span className="block text-xs text-slate-600">{role}</span>
+              </span>
+            </summary>
+            <div className="panel account-menu-panel space-y-2 p-2">
+              <a className="dashboard-link" href={profile} onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                event.preventDefault();
+                accountMenu.current?.removeAttribute("open");
+                navigate(profile);
+              }}><UserRound size={17} aria-hidden="true" /> حساب کاربری</a>
+              {signOut}
             </div>
-          </div>
+          </details>
         </header>
         <main id="dashboard-content" tabIndex={-1} className="dashboard-content">
           {children}

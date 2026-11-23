@@ -7,8 +7,16 @@ export const errorHandler: ErrorRequestHandler = (
   error: unknown,
   _req,
   res,
-  _next,
+  next,
 ) => {
+  if (res.headersSent) {
+    next(error);
+    return;
+  }
+  if (error instanceof Error && "type" in error && error.type === "entity.too.large") {
+    res.status(413).json({ message: "حجم درخواست بیش از حد مجاز است" });
+    return;
+  }
   if (
     error instanceof SyntaxError &&
     "status" in error &&

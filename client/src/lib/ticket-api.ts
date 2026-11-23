@@ -3,7 +3,7 @@ import { inboxResponseSchema, membersSchema } from "./staff-tickets";
 import {
   createdSchema,
   detailSchema,
-  listSchema,
+  paginatedListSchema,
   successSchema,
   type CreateTicketValues,
   type ReplyValues,
@@ -14,7 +14,7 @@ const customerRoot = "/api/customer/tickets";
 const staffRoot = "/api/staff/tickets";
 
 export const customerApi = {
-  list: () => api(customerRoot, listSchema),
+  list: (search: string) => api(`${customerRoot}?${search}`, paginatedListSchema),
   detail: (id: string) => api(`${customerRoot}/${id}`, detailSchema),
   create: (values: CreateTicketValues, token: string) =>
     api(customerRoot, createdSchema, postOptions(values, token)),

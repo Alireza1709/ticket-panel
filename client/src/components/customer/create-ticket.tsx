@@ -1,3 +1,5 @@
+import { TextInput, Textarea } from "@/components/ui/field";
+import { Select, selectOptions } from "@/components/ui/select";
 import { customerApi } from "@/lib/ticket-api";
 import { useMutationSubmit } from "@/lib/mutation-submit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +12,7 @@ import {
   createTicketSchema,
   type CreateTicketValues,
 } from "@/lib/tickets";
-import { CsrfState, Failure, inputClass, useTicketPost } from "@/components/shared/ticket-form";
+import { CsrfState, Failure, useTicketPost } from "@/components/shared/ticket-form";
 
 export function CreateTicket({
   navigate,
@@ -24,6 +26,8 @@ export function CreateTicket({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<CreateTicketValues>({
     resolver: zodResolver(createTicketSchema),
@@ -38,7 +42,10 @@ export function CreateTicket({
     mutationFn: (values: CreateTicketValues) =>
       state.post((token) => customerApi.create(values, token)),
     onSuccess: async (result) => {
-      await client.invalidateQueries({ queryKey: ["tickets"] });
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["tickets"] }),
+        client.invalidateQueries({ queryKey: ["overview"] }),
+      ]);
       notify(`${result.message}؛ شماره پیگیری: ${result.ticket.ticket_number}`);
       navigate(`/customer/tickets/${result.ticket.id}`);
     },
@@ -60,12 +67,11 @@ export function CreateTicket({
             <label htmlFor="subject" className="mb-2 block text-sm font-medium">
               موضوع
             </label>
-            <input
+            <TextInput
               id="subject"
               autoFocus
               maxLength={200}
               {...register("subject")}
-              className={inputClass}
               aria-invalid={Boolean(errors.subject)}
               aria-describedby={errors.subject ? "subject-error" : undefined}
             />
@@ -87,17 +93,13 @@ export function CreateTicket({
               >
                 اولویت
               </label>
-              <select
+              <Select
                 id="priority"
-                {...register("priority")}
-                className={inputClass}
-              >
-                {Object.entries(priorities).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                value={watch("priority")}
+                options={selectOptions(priorities)}
+                onChange={(value) => setValue("priority", value, { shouldValidate: true })}
+                disabled={create.isPending}
+              />
               {errors.priority && (
                 <p role="alert" className="text-red-700">
                   اولویت معتبر انتخاب کنید
@@ -111,17 +113,13 @@ export function CreateTicket({
               >
                 دسته‌بندی
               </label>
-              <select
+              <Select
                 id="category"
-                {...register("category")}
-                className={inputClass}
-              >
-                {Object.entries(categories).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                value={watch("category")}
+                options={selectOptions(categories)}
+                onChange={(value) => setValue("category", value, { shouldValidate: true })}
+                disabled={create.isPending}
+              />
               {errors.category && (
                 <p role="alert" className="text-red-700">
                   دسته‌بندی معتبر انتخاب کنید
@@ -136,12 +134,11 @@ export function CreateTicket({
             >
               توضیحات
             </label>
-            <textarea
+            <Textarea
               id="description"
               rows={7}
               maxLength={10000}
               {...register("description")}
-              className={inputClass}
               aria-invalid={Boolean(errors.description)}
               aria-describedby={
                 errors.description ? "description-error" : undefined

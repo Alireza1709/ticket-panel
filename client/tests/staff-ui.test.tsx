@@ -159,15 +159,14 @@ test("real staff Landing renders a filtered inbox with both real Jalali date pic
       "صفحه قبل",
       "صفحه بعد",
       "۱۴۰۵",
-      'id="staff-from"',
-      'id="staff-to"',
-      'id="sample-date"',
       'dir="rtl"',
     ])
       assert.ok(html.includes(text), text);
-    assert.match(html, /<option value="in_progress" selected=""/);
-    assert.match(html, /<option value="high" selected=""/);
-    assert.match(html, /<option value="10" selected=""/);
+    assert.match(html, /role="option" aria-selected="true"[^>]*>در حال بررسی/);
+    assert.match(html, /role="option" aria-selected="true"[^>]*>زیاد/);
+    assert.match(html, /role="option" aria-selected="true"[^>]*>۱۰/);
+    assert.match(html, /<input[^>]*id="[^"]+-from"/);
+    assert.match(html, /<input[^>]*id="[^"]+-updated_to"/);
     assert.match(html, /value="پرداخت"/);
     assert.ok(html.includes(`/staff/tickets/${ticketId}?page=2`));
     // The real picker populates its input after mounting; conversion is tested separately.
@@ -210,7 +209,7 @@ test("staff inbox renders Persian loading, empty and error states and invalid UR
     queryClient.clear();
   }
 });
-test("integrated staff detail includes real footer picker, reply, assignment, history and allowed status options", () => {
+test("integrated staff detail includes reply, assignment, history and allowed status options", () => {
   const queryClient = client();
   queryClient.setQueryData(["staff-ticket", userId, ticketId], {
     ticket,
@@ -245,13 +244,12 @@ test("integrated staff detail includes real footer picker, reply, assignment, hi
       "انصراف",
       "تاریخچه وضعیت",
       "متن مشتری",
-      "sample-date",
     ]) {
       assert.ok(html.includes(text), text);
     }
-    assert.match(html, /<option value="waiting_customer"/);
-    assert.match(html, /<option value="resolved"/);
-    assert.equal(html.includes('<option value="closed"'), false);
+    assert.match(html, /role="option"[^>]*>در انتظار مشتری/);
+    assert.match(html, /role="option"[^>]*>حل‌شده/);
+    assert.doesNotMatch(html, /role="option"[^>]*>بسته/);
   } finally {
     queryClient.clear();
   }

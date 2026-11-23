@@ -15,7 +15,9 @@ export function TicketDetail({
   userId,
   navigate,
   notify,
+  search = "",
 }: {
+  search?: string;
   id: string;
   userId: string;
   navigate: (path: string) => void;
@@ -28,7 +30,7 @@ export function TicketDetail({
   });
   useAuthFailure(query.error);
   const back = (
-    <Button variant="outline" onClick={() => navigate("/customer/tickets")}>
+    <Button variant="outline" onClick={() => navigate(search ? `/customer/tickets?${search}` : "/customer/tickets")}>
       <ArrowRight size={16} />
       انصراف
     </Button>
@@ -63,7 +65,7 @@ export function TicketDetail({
             userId={userId}
             onCancelled={(message) => {
               notify(message);
-              navigate("/customer/tickets");
+              navigate(search ? `/customer/tickets?${search}` : "/customer/tickets");
             }}
           />
         )}

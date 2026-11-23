@@ -1,9 +1,10 @@
+import { ticketOverview } from "../../models/ticket-list.model.js";
 import { randomBytes } from "node:crypto";
 import argon2 from "argon2";
 import type { Request, Response } from "express";
-import { findActiveLogin, type PublicUser } from "../../models/user.model.js";
+import { createAccount, findActiveLogin, type PublicUser } from "../../models/user.model.js";
 import { cookieOptions, currentUser, sessionCookieName } from "./auth.middleware.js";
-import { loginSchema, logoutSchema } from "./auth.validator.js";
+import { loginSchema, logoutSchema, registrationSchema } from "./auth.validator.js";
 
 const dummyHash = await argon2.hash(randomBytes(32), { type: argon2.argon2id });
 const token = () => randomBytes(32).toString("hex");
@@ -65,10 +66,28 @@ export async function logout(req: Request, res: Response) {
   res.json({ message: "از حساب خارج شدید" });
 }
 
-export function customerOverview(_req: Request, res: Response) {
-  res.json({ user: res.locals.user, message: "به بخش تیکت‌های خود خوش آمدید" });
+export async function customerOverview(req: Request, res: Response) {
+  const overview = await ticketOverview(req.session.userId!, "customer");
+  res.json({ user: res.locals.user, message: "به بخش تیکت‌های خود خوش آمدید", overview });
 }
 
-export function staffOverview(_req: Request, res: Response) {
-  res.json({ user: res.locals.user, message: "به صندوق پشتیبانی خوش آمدید" });
+export async function staffOverview(req: Request, res: Response) {
+  const overview = await ticketOverview(req.session.userId!, "staff");
+  res.json({ user: res.locals.user, message: "به صندوق پشتیبانی خوش آمدید", overview });
+}
+
+export async function registerCustomer(req: Request, res: Response) {
+  const parsed = registrationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: "اطلاعات ثبت‌نام معتبر نیست" });
+    return;
+  }
+  const { name, email, password } = parsed.data;
+  const hash = await argon2.hash(password, { type: argon2.argon2id });
+  const user = await createAccount({ name, email, hash }, "customer");
+  if (!user) {
+    res.status(409).json({ message: "این ایمیل قبلاً ثبت شده است" });
+    return;
+  }
+  res.status(201).json({ message: "حساب ساخته شد؛ اکنون وارد شوید" });
 }

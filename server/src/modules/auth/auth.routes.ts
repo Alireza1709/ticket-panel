@@ -6,6 +6,7 @@ import {
   getMe,
   login,
   logout,
+  registerCustomer,
   staffOverview,
 } from "./auth.controller.js";
 import { csrfProtection, requireRole } from "./auth.middleware.js";
@@ -20,9 +21,18 @@ const loginLimit = rateLimit({
     message: "تلاش‌های ورود بیش از حد مجاز است؛ کمی بعد دوباره تلاش کنید",
   },
 });
+const registrationLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { message: "کمی بعد دوباره برای ثبت‌نام تلاش کنید" },
+});
+
 export const authRouter = Router();
 authRouter.get("/csrf", getCsrf);
 authRouter.get("/me", getMe);
+authRouter.post("/register", registrationLimit, csrfProtection, registerCustomer);
 authRouter.post("/login", loginLimit, csrfProtection, login);
 authRouter.post("/logout", csrfProtection, logout);
 

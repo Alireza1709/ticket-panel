@@ -1,3 +1,4 @@
+import { Textarea } from "@/components/ui/field";
 import { replyToTicket } from "@/lib/ticket-api";
 import { useMutationSubmit } from "@/lib/mutation-submit";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -6,7 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/components/feedback/toast";
 import { Button } from "@/components/ui/button";
 import { replySchema, type ReplyValues } from "@/lib/tickets";
-import { CsrfState, Failure, inputClass, useTicketPost } from "./ticket-form";
+import { CsrfState, Failure, useTicketPost } from "./ticket-form";
 
 export function ReplyForm({
   ticketId,
@@ -42,6 +43,7 @@ export function ReplyForm({
           queryKey: ["staff-ticket", userId, ticketId],
         }),
         client.invalidateQueries({ queryKey: ["staff-inbox"] }),
+        client.invalidateQueries({ queryKey: ["overview"] }),
       ]);
     },
   });
@@ -55,14 +57,13 @@ export function ReplyForm({
       <label htmlFor="reply-body" className="block font-semibold">
         ارسال پاسخ
       </label>
-      <textarea
+      <Textarea
         id="reply-body"
         rows={4}
         placeholder="پاسخ خود را بنویسید…"
         maxLength={10000}
         disabled={reply.isPending}
         {...register("body")}
-        className={inputClass}
         aria-invalid={Boolean(errors.body)}
         aria-describedby={errors.body ? "reply-error" : undefined}
       />

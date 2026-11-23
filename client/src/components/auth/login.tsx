@@ -147,6 +147,7 @@ export function Login({
             {login.isPending ? "در حال ورود…" : "ورود به حساب"}
           </Button>
         </form>
+        <a href="/register" className="mt-5 block text-sm text-primary">ساخت حساب مشتری</a>
       </section>
     </main>
   );

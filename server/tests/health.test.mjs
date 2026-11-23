@@ -35,6 +35,13 @@ test("health API responds and safely reports unavailable PostgreSQL", async () =
     });
     assert.equal(invalid.status, 400);
     assert.deepEqual(await invalid.json(), { message: "درخواست نامعتبر است" });
+    const tooLarge = await fetch(`${base}/api/health`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value: "x".repeat(110 * 1024) }),
+    });
+    assert.equal(tooLarge.status, 413);
+    assert.deepEqual(await tooLarge.json(), { message: "حجم درخواست بیش از حد مجاز است" });
   } finally {
     await new Promise((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

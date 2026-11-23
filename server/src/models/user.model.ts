@@ -30,3 +30,17 @@ export async function listActiveStaff() {
   );
   return result.rows;
 }
+
+export async function createAccount(
+  account: { name: string; email: string; hash: string },
+  role: PublicUser["role"],
+): Promise<PublicUser | undefined> {
+  const result = await pool.query<PublicUser>(
+    `WITH identity AS (SELECT gen_random_uuid() AS id)
+     INSERT INTO users (id, created_by, name, email, password_hash, role)
+     SELECT id, id, $1, $2, $3, $4 FROM identity
+     ON CONFLICT (email) DO NOTHING RETURNING id, name, email, role`,
+    [account.name, account.email, account.hash, role],
+  );
+  return result.rows[0];
+}
